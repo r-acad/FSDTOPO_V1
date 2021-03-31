@@ -105,7 +105,7 @@ end
 
 # ╔═╡ c1711000-920b-11eb-14ba-eb5ce08f3941
 function SU_CQUAD4()
-# Matrix relating cartesian stress components (sxx, syy, sxy) with nodal displacement in CQUAD4 element, reverse-engineered from NASTRAN with E = 1, t = 1, nu=.03
+# Matrix relating cartesian stress components (sxx, syy, sxy) with nodal displacements in CQUAD4 element, reverse-engineered from NASTRAN with E = 1, t = 1, nu=.03
 		
 A = -1.209677E+00 ; B = -3.629032E-01 ; C = -4.233871E-01   	
 
@@ -161,39 +161,34 @@ function FSDTOPO(t, niter)
 sigma_all	= 6
 max_all_t = 5
 full_penalty_iter = 10
-max_penalty = 3	
+max_penalty = 5
 
 for iter in 1:niter
-
-penalty = min(1 + iter / full_penalty_iter, max_penalty)
+	NODAL_DISPLACEMENTS(t)
+	ESE = INTERNAL_LOADS()		
 		
-NODAL_DISPLACEMENTS(t)
-ESE = INTERNAL_LOADS()		
-				
-t .*= ESE / sigma_all		
-		
-t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), 0.01) for nt in t]		
-		
-		
+	penalty = min(1 + iter / full_penalty_iter, max_penalty)		
+	t .*= ESE / sigma_all					
+	t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), 0.01) for nt in t]	
 end		
 		
-t	
+return t	
 end # end function
 	
 end
 
 # ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
-newt = FSDTOPO(th, 14);
+newt = FSDTOPO(th, 24);
 
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
-heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))
+heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ c58a7360-920c-11eb-2a15-bda7ed075812
 #heatmap(reverse(SU_CQUAD4(), dims=1), aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))
 
 # ╔═╡ Cell order:
-# ╟─13b32a20-9206-11eb-3af7-0feea278594c
-# ╟─fc7e00a0-9205-11eb-039c-23469b96de19
+# ╠═13b32a20-9206-11eb-3af7-0feea278594c
+# ╠═fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
