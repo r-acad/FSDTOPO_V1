@@ -24,7 +24,7 @@ KE = [ 	[1 D A G     B -D C G];
 		[-D B -G A   D 1 G C];
 		[C -G B D   A G 1 -D];
 		[G A D B   -G C -D 1]		
-		]	
+		]'	
 
 
 	
