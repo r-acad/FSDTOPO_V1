@@ -1,0 +1,835 @@
+1
+ 
+ 
+ 
+ 
+                      Warning: This computer program is protected by copyright law and international treaties.       
+                  Unauthorized use, reproduction or distribution of this computer program, or any portion of it, may 
+                                          result in severe civil and criminal penalties.                             
+                         Copyright (C) 2016 MSC Software Corporation and its licensors. All rights reserved.         
+ 
+ 
+                                              * * * * * * * * * * * * * * * * * * * *
+                                              * * * * * * * * * * * * * * * * * * * *
+                                              * *                                 * *
+                                              * *           MSC Software          * *
+                                              * *               CORP              * *
+                                              * *                                 * *
+                                              * *      M S C   N a s t r a n      * *
+                                              * *                                 * *
+                                              * *                                 * *
+                                              * *                                 * *
+                                              * *     Version 2016.0.0-CL405538   * *
+                                              * *                                 * *
+                                              * *                                 * *
+                                              * *                                 * *
+                                              * *          APR 21, 2016           * *
+                                              * *                                 * *
+                                              * *              Intel              * *
+                                              * *MODEL P5-4/6350 (DESKTOP-QL53HP9 * *
+                                              * *     Windows 10 Pro 6.2 9200     * *
+                                              * * Compiled for 8664 (SINGLE Mode) * *
+                                              * *                                 * *
+                                              * * * * * * * * * * * * * * * * * * * *
+                                              * * * * * * * * * * * * * * * * * * * *
+1 News file -  (March 31, 2016):
+  
+               Welcome to MSC Nastran 2016
+  
+  
+   Details of the new capabilities can be found in the MSC Nastran 2016
+     Release Guide available online in the installation documentation
+     sub-directory.
+   Additional information can be found at the MSC Nastran Product Support page:
+  
+      http://simcompanion.mscsoftware.com
+  
+  
+   The support page provides links to these valuable information:
+      * A searchable Knowledge Base containing examples and answers to thousands
+        of frequently asked questions written by MSC Software subject-matter
+        experts.
+      * Peer-to-peer Discussion Forums enabling you to post questions for your
+        MSC Software products and receive answers from other users worldwide.
+      * A list of known issues with the product and any workarounds.
+      * Instructions on how to contact technical support
+      * A mechanism for sending us product feedback or enhancement requests.
+      * Hardware and software requirements.
+      * Examples and Tutorials
+      * and much more.
+  
+   For information on training, please visit our Training web site
+  
+      http://www.mscsoftware.com/Contents/Services/Training/
+  
+   MSC Nastran brings powerful new features and enhancements for engineering
+   solutions.
+  
+  
+     HPC
+     -  The performance of extraction of eigenmodes using ACMS has been improved
+          using SMP. This is applicable for SOL 103, SOL 111, SOL 200 and
+          SOL 400.
+     -  The solution of linear equations encountered in SOL 101,107,108,111 and
+          SOL 200 has been improved when using the Intel MKL Pardiso solver for
+          SMP.
+     -  Element stiffness and stress recovery has been parallelized in SOL 400
+          using SMP.
+  
+     Acoustics
+     -  The Equivalent Radiated Power (ERP) capability now supports higher order
+          shell elements and solid elements. The Modal Participation Factor(MPF)
+          can be obtained and the output has been improved.
+     -  For acoustic analysis it is also possible to output the velocity normal
+          to the surface and the vibrational intensity.
+1 
+     Optimization
+     -  Global Optimization capability has been introduced to find the true
+          optimal value as opposed to a potentially local optimum.
+     -  Multi-Model optimization technique has been added that allows you to
+          optimize the response across multiple simulation models.
+     -  Optimization based upon Weight response associated with property or
+          material id has been expanded to support topology optimization.
+  
+     Rotordynamics
+     -  The rotordynamic capability has been expanded to support 3D behavior.
+  
+     Connector Technology
+     -  Connector technology, CWELD, CFAST, and CSEAM connectors are improved:
+     -  The elements can be used consistently for linear analysis and large
+          displacement analysis (SOL 400).
+     -  The projection algorithm has been improved.
+     -  The connector elements may be used with finer meshes because the 3 by 3
+          search algorithm has been replaced with a general algorithm.
+     -   Force output is available in a SOL 400 simulation for ANALYSIS=NTRAN.
+     -   Additional output capability to summarize the connector behavior.
+  
+     Implicit Nonlinear Analysis - SOL 400
+     -  The segment-to-segment procedure has been made more robust.
+     -  Large interference conditions is supported
+     -  Gaps / clearance can be retained in contact simulations
+     -  Beam contact, using the cross-section geometry is supported.
+     -  Restart can now be performed with SOL 400 using advanced elements.
+     -  It is possible to use advanced elements when creating a superelement.
+  
+     Explicit Nonlinear Analysis - SOL 700
+     -  New material models have been added for creep and concrete behavior.
+     -  Severely distorted elements may be eliminated in SPH simulation.
+     -  Dynamic relaxation is available with body loads.
+     -  A body may be inserted within another body to model rebars in concrete.
+  
+     Results Database
+     -  Results may be output to an HDF5 results database
+  
+     F06 Reader - Provided Synopsis of Key Nastran Files (F06, F04 and LOG)
+     - Model data summary
+     - Links to MSC SimCompanion for Error and Warning Messages.
+     - Link to local Quick Reference Guide (QRG)
+     - XY-Plots of key global results like nonlinear convergence, design cycle,
+        etc.
+  
+     Delivery
+     -   Win 7 32-bit is no longer available.
+     -   The I4 and I8 installers have been split.
+  
+1 
+    Documentation
+  
+     The complete documentation set is provided in a separate installer and when
+     installed is available at:
+     MSC_DOC_DIR/doc/pdf_nastran directory.
+     Where MSC_DOC_DIR is the directory where documentation was installed
+     This help set has cross references between documents, links to how-to
+     videos, and example files.
+  
+    Individual MSC Nastran documents are available for download from the
+      Simcompanion Website at:
+      http://simcompanion.mscsoftware.com/
+  
+    These documents were updated for the MSC Nastran 2016 Release
+  
+         1.  MSC Nastran 2016 Installation and Operations Guide
+         2.  MSC Nastran 2016 Quick Reference Guide
+         3.  MSC Nastran 2016 Release Guide
+         4.  MSC Nastran 2016 Getting Started User's Guide
+         4.  MSC Nastran 2016 Linear Statics Analysis User's Guide
+         5.  MSC Nastran 2016 Dynamic Analysis User's Guide
+         6.  MSC Nastran 2016 Superelements User's Guide
+         7.  MSC Nastran 2016 Rotordynamics User's Guide
+         8.  MSC Nastran 2016 Demonstration Problems Manual
+         9.  MSC Nastran 2016 Nastran Embedded Fatigue User's Guide
+        10.  MSC Nastran 2016 Design Sensitivity and Optimization
+        11.  MSC Nastran 2016 Nonlinear User's Guide SOL 400
+        12.  MSC Nastran 2016 Explicit Nonlinear (SOL 700) User Guide
+        13.  MSC Nastran 2016 Reference Manual
+        14.  MSC Nastran 2016 DMAP Programmer's Guide
+        15.  MSC Nastran 2016 Utilities Guide (New)
+        16.  MSC Nastran 2016 User Defined Services
+  
+  
+  
+    Please refer to:
+  
+    MSC_DOC_DIR/doc/pdf_nastran/nastran_library.pdf
+  
+  
+1                                                                             MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     1
+                                                                                                                                    
+0        N A S T R A N    F I L E    A N D    S Y S T E M    P A R A M E T E R    E C H O                                           
+0                                                                                                                                   
+                                                                                                                                    
+                                                                                                                                    
+     $ SYSFIELD=SCR*(RAW=YES,BUFFIO=YES,WNUM=16,WSIZE=16MB) $(D:/RSOFT/NASTRAN/MSC_20
+     $ SYSFIELD=DBALL(RAW=YES,BUFFIO=YES,WNUM=16,WSIZE=16MB) $(D:/RSOFT/NASTRAN/MSC_2
+     NASTRAN BUFFSIZE=8193 $(D:/RSOFT/NASTRAN/MSC_2016_CALEB/INSTALLATION_MARCH_21/CO
+1                                                                             MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     2
+                                                                                                                                    
+0        N A S T R A N    E X E C U T I V E    C O N T R O L    E C H O                                                             
+0                                                                                                                                   
+                                                                                                                                    
+                                                                                                                                    
+     SOL 101                                                                                 
+     CEND                                                                                    
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     3
+                                                                                                                                    
+0                                                                                                                                   
+0                                        C A S E    C O N T R O L    E C H O                                                        
+                 COMMAND                                                                                                            
+                 COUNT                                                                                                              
+                  1      TITLE = THIS IS A DEFAULT SUBCASE.                                                      
+                  2      ECHO = NONE                                                                             
+                  3                                                                                              
+                  4      SPCFORCES(SORT1,REAL)=ALL                                                               
+                  5      STRAIN(SORT1,REAL,VONMISES,STRCUR,CENTER)=ALL                                           
+                  6      STRESS(SORT1,REAL,VONMISES,CENTER)=ALL                                                  
+                  7      FORCE(SORT1,REAL,CENTER)=ALL                                                            
+                  8                                                                                              
+                  9      SUBCASE 11                                                                              
+                 10      SUBTITLE=F1X                                                                            
+                 11      SPC = 11                                                                                
+                 12      LOAD = 11                                                                               
+                 13                                                                                              
+                 14      SUBCASE 12                                                                              
+                 15      SUBTITLE=F1Y                                                                            
+                 16      SPC = 12                                                                                
+                 17      LOAD = 12                                                                               
+                 18                                                                                              
+                 19      SUBCASE 21                                                                              
+                 20      SUBTITLE=F2X                                                                            
+                 21      SPC = 21                                                                                
+                 22      LOAD = 21                                                                               
+                 23                                                                                              
+                 24      SUBCASE 22                                                                              
+                 25      SUBTITLE=F2Y                                                                            
+                 26      SPC = 22                                                                                
+                 27      LOAD = 22                                                                               
+                 28                                                                                              
+                 29      SUBCASE 31                                                                              
+                 30      SUBTITLE=F3X                                                                            
+                 31      SPC = 31                                                                                
+                 32      LOAD = 31                                                                               
+                 33                                                                                              
+                 34      SUBCASE 32                                                                              
+                 35      SUBTITLE=F3Y                                                                            
+                 36      SPC = 32                                                                                
+                 37      LOAD = 32                                                                               
+                 38                                                                                              
+                 39      SUBCASE 41                                                                              
+                 40      SUBTITLE=F4X                                                                            
+                 41      SPC = 41                                                                                
+                 42      LOAD = 41                                                                               
+                 43                                                                                              
+                 44      SUBCASE 42                                                                              
+                 45      SUBTITLE=F4Y                                                                            
+                 46      SPC = 42                                                                                
+                 47      LOAD = 42                                                                               
+                 48                                                                                              
+                 49                                                                                              
+                 50                                                                                              
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     4
+                                                                                                                                    
+0                                                                                                                                   
+0                                        C A S E    C O N T R O L    E C H O                                                        
+                 COMMAND                                                                                                            
+                 COUNT                                                                                                              
+                 51                                                                                              
+                 52      BEGIN BULK                                                                              
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     5
+                                                                                                                                    
+0                                                                                                                                   
+                                        M O D E L   S U M M A R Y          BULK = 0
+                                   ENTRY NAME        NUMBER OF ENTRIES
+                                   ----------        -----------------
+                                       CQUAD4                        1
+                                        FORCE                        8
+                                         GRID                        4
+                                         LOAD                        8
+                                         MAT1                        1
+                                       PSHELL                        1
+                                         SPC1                       16
+                                       SPCADD                        8
+
+ ^^^     
+ ^^^ >>> IFP OPERATIONS COMPLETE <<< 
+ ^^^     
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     6
+                                                                                                                                    
+0                                                                                                                                   
+ *** USER INFORMATION MESSAGE 7310 (VECPRN)
+     ORIGIN OF SUPERELEMENT OR MODULE BASIC COORDINATE SYSTEM WILL BE USED AS REFERENCE LOCATION.
+     RESULTANTS ABOUT ORIGIN OF SUPERELEMENT OR MODULE BASIC COORDINATE SYSTEM IN SUPERELEMENT OR MODULE
+     BASIC SYSTEM COORDINATES.
+0                                                  OLOAD    RESULTANT       
+  SUBCASE/    LOAD
+  DAREA ID    TYPE       T1            T2            T3            R1            R2            R3
+0       11     FX    1.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00
+0       12     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       1.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00
+0       21     FX    1.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00
+0       22     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       1.000000E+00     ----       0.000000E+00     ----       1.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  1.000000E+00
+0       31     FX    1.000000E+00     ----          ----          ----       0.000000E+00 -1.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00 -1.000000E+00
+0       32     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       1.000000E+00     ----       0.000000E+00     ----       1.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  1.000000E+00
+0       41     FX    1.000000E+00     ----          ----          ----       0.000000E+00 -1.000000E+00                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00 -1.000000E+00
+0       42     FX    0.000000E+00     ----          ----          ----       0.000000E+00  0.000000E+00                             
+               FY       ----       1.000000E+00     ----       0.000000E+00     ----       0.000000E+00                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00  1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00
+  
+ *** SYSTEM INFORMATION MESSAGE 4159 (DFMSA)
+     THE DECOMPOSITION OF KLL      YIELDS A MAXIMUM MATRIX-TO-FACTOR-DIAGONAL RATIO OF    1.000021E+00
+  
+ *** SYSTEM INFORMATION MESSAGE 4159 (DFMSA)
+     THE DECOMPOSITION OF KLL      YIELDS A MAXIMUM MATRIX-TO-FACTOR-DIAGONAL RATIO OF    1.000021E+00
+  
+ *** SYSTEM INFORMATION MESSAGE 4159 (DFMSA)
+     THE DECOMPOSITION OF KLL      YIELDS A MAXIMUM MATRIX-TO-FACTOR-DIAGONAL RATIO OF    1.000021E+00
+  
+ *** SYSTEM INFORMATION MESSAGE 4159 (DFMSA)
+     THE DECOMPOSITION OF KLL      YIELDS A MAXIMUM MATRIX-TO-FACTOR-DIAGONAL RATIO OF    1.000021E+00
+  
+ *** SYSTEM INFORMATION MESSAGE 4159 (DFMSA)
+     THE DECOMPOSITION OF KLL      YIELDS A MAXIMUM MATRIX-TO-FACTOR-DIAGONAL RATIO OF    1.000021E+00
+  
+ *** SYSTEM INFORMATION MESSAGE 4159 (DFMSA)
+     THE DECOMPOSITION OF KLL      YIELDS A MAXIMUM MATRIX-TO-FACTOR-DIAGONAL RATIO OF    1.000021E+00
+  
+ *** SYSTEM INFORMATION MESSAGE 4159 (DFMSA)
+     THE DECOMPOSITION OF KLL      YIELDS A MAXIMUM MATRIX-TO-FACTOR-DIAGONAL RATIO OF    1.000021E+00
+  
+ *** SYSTEM INFORMATION MESSAGE 4159 (DFMSA)
+     THE DECOMPOSITION OF KLL      YIELDS A MAXIMUM MATRIX-TO-FACTOR-DIAGONAL RATIO OF    1.000021E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     7
+                                                                                                                                    
+0                                                                                                            SUBCASE 11             
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                1         -1.1101553E-16          1.1008065E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     8
+                                                                                                                                    
+0                                                                                                            SUBCASE 12             
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                2         -1.1101553E-16          1.1008065E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE     9
+                                                                                                                                    
+0                                                                                                            SUBCASE 21             
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                3         -1.1101553E-16          1.1008065E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    10
+                                                                                                                                    
+0                                                                                                            SUBCASE 22             
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                4          2.2205138E-16          1.1008065E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    11
+                                                                                                                                    
+0                                                                                                            SUBCASE 31             
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                5          2.2205138E-16          1.1008065E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    12
+                                                                                                                                    
+0                                                                                                            SUBCASE 32             
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                6         -1.1101553E-16          1.1008065E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    13
+                                                                                                                                    
+0                                                                                                            SUBCASE 41             
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                7          2.2205138E-16          1.1008065E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    14
+                                                                                                                                    
+0                                                                                                            SUBCASE 42             
+ *** USER INFORMATION MESSAGE 5293 (SSG3A)
+    FOR DATA BLOCK KLL     
+    LOAD SEQ. NO.             EPSILON              EXTERNAL WORK      EPSILONS LARGER THAN 0.001 ARE FLAGGED WITH ASTERISKS
+                8         -1.1101553E-16          1.1008065E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    15
+                                                                                                                                    
+0                                                                                                                                   
+ *** USER INFORMATION MESSAGE 7310 (VECPRN)
+     ORIGIN OF SUPERELEMENT OR MODULE BASIC COORDINATE SYSTEM WILL BE USED AS REFERENCE LOCATION.
+     RESULTANTS ABOUT ORIGIN OF SUPERELEMENT OR MODULE BASIC COORDINATE SYSTEM IN SUPERELEMENT OR MODULE
+     BASIC SYSTEM COORDINATES.
+0                                                  SPCFORCE RESULTANT       
+  SUBCASE/    LOAD
+  DAREA ID    TYPE       T1            T2            T3            R1            R2            R3
+0       11     FX   -1.000000E+00     ----          ----          ----       0.000000E+00  4.233871E-01                             
+               FY       ----      -1.387779E-17     ----       0.000000E+00     ----      -4.233871E-01                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS -1.000000E+00 -1.387779E-17  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00
+0       12     FX    2.081668E-17     ----          ----          ----       0.000000E+00  4.233871E-01                             
+               FY       ----      -1.000000E+00     ----       0.000000E+00     ----      -4.233871E-01                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  2.081668E-17 -1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00 -1.110223E-16
+0       21     FX   -1.000000E+00     ----          ----          ----       0.000000E+00  4.233871E-01                             
+               FY       ----       0.000000E+00     ----       0.000000E+00     ----      -4.233871E-01                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS -1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00  1.110223E-16
+0       22     FX    0.000000E+00     ----          ----          ----       0.000000E+00 -4.233871E-01                             
+               FY       ----      -1.000000E+00     ----       0.000000E+00     ----      -5.766129E-01                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00 -1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00 -1.000000E+00
+0       31     FX   -1.000000E+00     ----          ----          ----       0.000000E+00  5.766129E-01                             
+               FY       ----       3.469447E-17     ----       0.000000E+00     ----       4.233871E-01                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS -1.000000E+00  3.469447E-17  0.000000E+00  0.000000E+00  0.000000E+00  1.000000E+00
+0       32     FX   -3.469447E-17     ----          ----          ----       0.000000E+00 -4.233871E-01                             
+               FY       ----      -1.000000E+00     ----       0.000000E+00     ----      -5.766129E-01                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS -3.469447E-17 -1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00 -1.000000E+00
+0       41     FX   -1.000000E+00     ----          ----          ----       0.000000E+00  5.766129E-01                             
+               FY       ----      -1.110223E-16     ----       0.000000E+00     ----       4.233871E-01                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS -1.000000E+00 -1.110223E-16  0.000000E+00  0.000000E+00  0.000000E+00  1.000000E+00
+0       42     FX    0.000000E+00     ----          ----          ----       0.000000E+00  4.233871E-01                             
+               FY       ----      -1.000000E+00     ----       0.000000E+00     ----      -4.233871E-01                             
+               FZ       ----          ----       0.000000E+00  0.000000E+00  0.000000E+00     ----                                  
+               MX       ----          ----          ----       0.000000E+00     ----          ----                                  
+               MY       ----          ----          ----          ----       0.000000E+00     ----                                  
+               MZ       ----          ----          ----          ----          ----       0.000000E+00                             
+             TOTALS  0.000000E+00 -1.000000E+00  0.000000E+00  0.000000E+00  0.000000E+00 -5.551115E-17
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    16
+     F1X                                                                                                                            
+0                                                                                                            SUBCASE 11             
+ 
+                               F O R C E S   O F   S I N G L E - P O I N T   C O N S T R A I N T
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+           101      G      0.0            3.931452E-01   0.0            0.0            0.0            0.0
+           102      G     -5.766129E-01  -3.024194E-02   0.0            0.0            0.0            0.0
+           103      G     -6.330645E-01  -3.931452E-01   0.0            0.0            0.0            0.0
+           104      G      2.096774E-01   3.024194E-02   0.0            0.0            0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    17
+     F1Y                                                                                                                            
+0                                                                                                            SUBCASE 12             
+ 
+                               F O R C E S   O F   S I N G L E - P O I N T   C O N S T R A I N T
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+           101      G      3.931452E-01   0.0            0.0            0.0            0.0            0.0
+           102      G      3.024194E-02   2.096774E-01   0.0            0.0            0.0            0.0
+           103      G     -3.931452E-01  -6.330645E-01   0.0            0.0            0.0            0.0
+           104      G     -3.024194E-02  -5.766129E-01   0.0            0.0            0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    18
+     F2X                                                                                                                            
+0                                                                                                            SUBCASE 21             
+ 
+                               F O R C E S   O F   S I N G L E - P O I N T   C O N S T R A I N T
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+           101      G     -5.766129E-01   3.024194E-02   0.0            0.0            0.0            0.0
+           102      G      0.0           -3.931452E-01   0.0            0.0            0.0            0.0
+           103      G      2.096774E-01  -3.024194E-02   0.0            0.0            0.0            0.0
+           104      G     -6.330645E-01   3.931452E-01   0.0            0.0            0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    19
+     F2Y                                                                                                                            
+0                                                                                                            SUBCASE 22             
+ 
+                               F O R C E S   O F   S I N G L E - P O I N T   C O N S T R A I N T
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+           101      G     -3.024194E-02   2.096774E-01   0.0            0.0            0.0            0.0
+           102      G     -3.931452E-01   0.0            0.0            0.0            0.0            0.0
+           103      G      3.024194E-02  -5.766129E-01   0.0            0.0            0.0            0.0
+           104      G      3.931452E-01  -6.330645E-01   0.0            0.0            0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    20
+     F3X                                                                                                                            
+0                                                                                                            SUBCASE 31             
+ 
+                               F O R C E S   O F   S I N G L E - P O I N T   C O N S T R A I N T
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+           101      G     -6.330645E-01  -3.931452E-01   0.0            0.0            0.0            0.0
+           102      G      2.096774E-01   3.024194E-02   0.0            0.0            0.0            0.0
+           103      G      0.0            3.931452E-01   0.0            0.0            0.0            0.0
+           104      G     -5.766129E-01  -3.024194E-02   0.0            0.0            0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    21
+     F3Y                                                                                                                            
+0                                                                                                            SUBCASE 32             
+ 
+                               F O R C E S   O F   S I N G L E - P O I N T   C O N S T R A I N T
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+           101      G     -3.931452E-01  -6.330645E-01   0.0            0.0            0.0            0.0
+           102      G     -3.024194E-02  -5.766129E-01   0.0            0.0            0.0            0.0
+           103      G      3.931452E-01   0.0            0.0            0.0            0.0            0.0
+           104      G      3.024194E-02   2.096774E-01   0.0            0.0            0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    22
+     F4X                                                                                                                            
+0                                                                                                            SUBCASE 41             
+ 
+                               F O R C E S   O F   S I N G L E - P O I N T   C O N S T R A I N T
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+           101      G      2.096774E-01  -3.024194E-02   0.0            0.0            0.0            0.0
+           102      G     -6.330645E-01   3.931452E-01   0.0            0.0            0.0            0.0
+           103      G     -5.766129E-01   3.024194E-02   0.0            0.0            0.0            0.0
+           104      G      0.0           -3.931452E-01   0.0            0.0            0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    23
+     F4Y                                                                                                                            
+0                                                                                                            SUBCASE 42             
+ 
+                               F O R C E S   O F   S I N G L E - P O I N T   C O N S T R A I N T
+ 
+      POINT ID.   TYPE          T1             T2             T3             R1             R2             R3
+           101      G      3.024194E-02  -5.766129E-01   0.0            0.0            0.0            0.0
+           102      G      3.931452E-01  -6.330645E-01   0.0            0.0            0.0            0.0
+           103      G     -3.024194E-02   2.096774E-01   0.0            0.0            0.0            0.0
+           104      G     -3.931452E-01   0.0            0.0            0.0            0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    24
+     F1X                                                                                                                            
+0                                                                                                            SUBCASE 11             
+ 
+
+                          F O R C E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+ 
+    ELEMENT                - MEMBRANE  FORCES -                        - BENDING  MOMENTS -              - TRANSVERSE SHEAR FORCES -
+      ID              FX            FY            FXY             MX            MY            MXY             QX            QY
+          1      -1.209677E+00 -3.629032E-01 -4.233871E-01    0.0           0.0           0.0             0.0           0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    25
+     F1Y                                                                                                                            
+0                                                                                                            SUBCASE 12             
+ 
+
+                          F O R C E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+ 
+    ELEMENT                - MEMBRANE  FORCES -                        - BENDING  MOMENTS -              - TRANSVERSE SHEAR FORCES -
+      ID              FX            FY            FXY             MX            MY            MXY             QX            QY
+          1      -3.629032E-01 -1.209677E+00 -4.233871E-01    0.0           0.0           0.0             0.0           0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    26
+     F2X                                                                                                                            
+0                                                                                                            SUBCASE 21             
+ 
+
+                          F O R C E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+ 
+    ELEMENT                - MEMBRANE  FORCES -                        - BENDING  MOMENTS -              - TRANSVERSE SHEAR FORCES -
+      ID              FX            FY            FXY             MX            MY            MXY             QX            QY
+          1       1.209677E+00  3.629032E-01 -4.233871E-01    0.0           0.0           0.0             0.0           0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    27
+     F2Y                                                                                                                            
+0                                                                                                            SUBCASE 22             
+ 
+
+                          F O R C E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+ 
+    ELEMENT                - MEMBRANE  FORCES -                        - BENDING  MOMENTS -              - TRANSVERSE SHEAR FORCES -
+      ID              FX            FY            FXY             MX            MY            MXY             QX            QY
+          1      -3.629032E-01 -1.209677E+00  4.233871E-01    0.0           0.0           0.0             0.0           0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    28
+     F3X                                                                                                                            
+0                                                                                                            SUBCASE 31             
+ 
+
+                          F O R C E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+ 
+    ELEMENT                - MEMBRANE  FORCES -                        - BENDING  MOMENTS -              - TRANSVERSE SHEAR FORCES -
+      ID              FX            FY            FXY             MX            MY            MXY             QX            QY
+          1       1.209677E+00  3.629032E-01  4.233871E-01    0.0           0.0           0.0             0.0           0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    29
+     F3Y                                                                                                                            
+0                                                                                                            SUBCASE 32             
+ 
+
+                          F O R C E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+ 
+    ELEMENT                - MEMBRANE  FORCES -                        - BENDING  MOMENTS -              - TRANSVERSE SHEAR FORCES -
+      ID              FX            FY            FXY             MX            MY            MXY             QX            QY
+          1       3.629032E-01  1.209677E+00  4.233871E-01    0.0           0.0           0.0             0.0           0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    30
+     F4X                                                                                                                            
+0                                                                                                            SUBCASE 41             
+ 
+
+                          F O R C E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+ 
+    ELEMENT                - MEMBRANE  FORCES -                        - BENDING  MOMENTS -              - TRANSVERSE SHEAR FORCES -
+      ID              FX            FY            FXY             MX            MY            MXY             QX            QY
+          1      -1.209677E+00 -3.629032E-01  4.233871E-01    0.0           0.0           0.0             0.0           0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    31
+     F4Y                                                                                                                            
+0                                                                                                            SUBCASE 42             
+ 
+
+                          F O R C E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+ 
+    ELEMENT                - MEMBRANE  FORCES -                        - BENDING  MOMENTS -              - TRANSVERSE SHEAR FORCES -
+      ID              FX            FY            FXY             MX            MY            MXY             QX            QY
+          1       3.629032E-01  1.209677E+00 -4.233871E-01    0.0           0.0           0.0             0.0           0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    32
+     F1X                                                                                                                            
+0                                                                                                            SUBCASE 11             
+ 
+                           S T R A I N S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      STRAIN               STRAINS IN ELEMENT COORD SYSTEM             PRINCIPAL  STRAINS (ZERO SHEAR)                 
+    ID.       CURVATURE          NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1    0.0              -1.100806E+00   0.0           -1.100806E+00   -67.5000    2.279845E-01   -1.328791E+00   9.708200E-01
+            -1.000000E+00      0.0            0.0            0.0              0.0       0.0             0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    33
+     F1Y                                                                                                                            
+0                                                                                                            SUBCASE 12             
+ 
+                           S T R A I N S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      STRAIN               STRAINS IN ELEMENT COORD SYSTEM             PRINCIPAL  STRAINS (ZERO SHEAR)                 
+    ID.       CURVATURE          NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1    0.0               0.0           -1.100806E+00  -1.100806E+00   -22.5000    2.279845E-01   -1.328791E+00   9.708200E-01
+            -1.000000E+00      0.0            0.0            0.0              0.0       0.0             0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    34
+     F2X                                                                                                                            
+0                                                                                                            SUBCASE 21             
+ 
+                           S T R A I N S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      STRAIN               STRAINS IN ELEMENT COORD SYSTEM             PRINCIPAL  STRAINS (ZERO SHEAR)                 
+    ID.       CURVATURE          NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1    0.0               1.100806E+00   0.0           -1.100806E+00   -22.5000    1.328791E+00   -2.279845E-01   9.708200E-01
+            -1.000000E+00      0.0            0.0            0.0              0.0       0.0             0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    35
+     F2Y                                                                                                                            
+0                                                                                                            SUBCASE 22             
+ 
+                           S T R A I N S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      STRAIN               STRAINS IN ELEMENT COORD SYSTEM             PRINCIPAL  STRAINS (ZERO SHEAR)                 
+    ID.       CURVATURE          NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1    0.0               0.0           -1.100806E+00   1.100806E+00    22.5000    2.279845E-01   -1.328791E+00   9.708200E-01
+            -1.000000E+00      0.0            0.0            0.0              0.0       0.0             0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    36
+     F3X                                                                                                                            
+0                                                                                                            SUBCASE 31             
+ 
+                           S T R A I N S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      STRAIN               STRAINS IN ELEMENT COORD SYSTEM             PRINCIPAL  STRAINS (ZERO SHEAR)                 
+    ID.       CURVATURE          NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1    0.0               1.100806E+00   0.0            1.100806E+00    22.5000    1.328791E+00   -2.279845E-01   9.708200E-01
+            -1.000000E+00      0.0            0.0            0.0              0.0       0.0             0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    37
+     F3Y                                                                                                                            
+0                                                                                                            SUBCASE 32             
+ 
+                           S T R A I N S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      STRAIN               STRAINS IN ELEMENT COORD SYSTEM             PRINCIPAL  STRAINS (ZERO SHEAR)                 
+    ID.       CURVATURE          NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1    0.0               0.0            1.100806E+00   1.100806E+00    67.5000    1.328791E+00   -2.279845E-01   9.708200E-01
+            -1.000000E+00      0.0            0.0            0.0              0.0       0.0             0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    38
+     F4X                                                                                                                            
+0                                                                                                            SUBCASE 41             
+ 
+                           S T R A I N S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      STRAIN               STRAINS IN ELEMENT COORD SYSTEM             PRINCIPAL  STRAINS (ZERO SHEAR)                 
+    ID.       CURVATURE          NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1    0.0              -1.100806E+00   0.0            1.100806E+00    67.5000    2.279845E-01   -1.328791E+00   9.708200E-01
+            -1.000000E+00      0.0            0.0            0.0              0.0       0.0             0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    39
+     F4Y                                                                                                                            
+0                                                                                                            SUBCASE 42             
+ 
+                           S T R A I N S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      STRAIN               STRAINS IN ELEMENT COORD SYSTEM             PRINCIPAL  STRAINS (ZERO SHEAR)                 
+    ID.       CURVATURE          NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1    0.0               0.0            1.100806E+00  -1.100806E+00   -67.5000    1.328791E+00   -2.279845E-01   9.708200E-01
+            -1.000000E+00      0.0            0.0            0.0              0.0       0.0             0.0            0.0
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    40
+     F1X                                                                                                                            
+0                                                                                                            SUBCASE 11             
+ 
+                         S T R E S S E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      FIBER               STRESSES IN ELEMENT COORD SYSTEM             PRINCIPAL STRESSES (ZERO SHEAR)                 
+    ID.       DISTANCE           NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1   -5.000000E-01     -1.209677E+00  -3.629032E-01  -4.233871E-01   -67.5000   -1.875305E-01   -1.385050E+00   1.301458E+00
+             5.000000E-01     -1.209677E+00  -3.629032E-01  -4.233871E-01   -67.5000   -1.875305E-01   -1.385050E+00   1.301458E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    41
+     F1Y                                                                                                                            
+0                                                                                                            SUBCASE 12             
+ 
+                         S T R E S S E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      FIBER               STRESSES IN ELEMENT COORD SYSTEM             PRINCIPAL STRESSES (ZERO SHEAR)                 
+    ID.       DISTANCE           NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1   -5.000000E-01     -3.629032E-01  -1.209677E+00  -4.233871E-01   -22.5000   -1.875305E-01   -1.385050E+00   1.301458E+00
+             5.000000E-01     -3.629032E-01  -1.209677E+00  -4.233871E-01   -22.5000   -1.875305E-01   -1.385050E+00   1.301458E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    42
+     F2X                                                                                                                            
+0                                                                                                            SUBCASE 21             
+ 
+                         S T R E S S E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      FIBER               STRESSES IN ELEMENT COORD SYSTEM             PRINCIPAL STRESSES (ZERO SHEAR)                 
+    ID.       DISTANCE           NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1   -5.000000E-01      1.209677E+00   3.629032E-01  -4.233871E-01   -22.5000    1.385050E+00    1.875305E-01   1.301458E+00
+             5.000000E-01      1.209677E+00   3.629032E-01  -4.233871E-01   -22.5000    1.385050E+00    1.875305E-01   1.301458E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    43
+     F2Y                                                                                                                            
+0                                                                                                            SUBCASE 22             
+ 
+                         S T R E S S E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      FIBER               STRESSES IN ELEMENT COORD SYSTEM             PRINCIPAL STRESSES (ZERO SHEAR)                 
+    ID.       DISTANCE           NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1   -5.000000E-01     -3.629032E-01  -1.209677E+00   4.233871E-01    22.5000   -1.875305E-01   -1.385050E+00   1.301458E+00
+             5.000000E-01     -3.629032E-01  -1.209677E+00   4.233871E-01    22.5000   -1.875305E-01   -1.385050E+00   1.301458E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    44
+     F3X                                                                                                                            
+0                                                                                                            SUBCASE 31             
+ 
+                         S T R E S S E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      FIBER               STRESSES IN ELEMENT COORD SYSTEM             PRINCIPAL STRESSES (ZERO SHEAR)                 
+    ID.       DISTANCE           NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1   -5.000000E-01      1.209677E+00   3.629032E-01   4.233871E-01    22.5000    1.385050E+00    1.875305E-01   1.301458E+00
+             5.000000E-01      1.209677E+00   3.629032E-01   4.233871E-01    22.5000    1.385050E+00    1.875305E-01   1.301458E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    45
+     F3Y                                                                                                                            
+0                                                                                                            SUBCASE 32             
+ 
+                         S T R E S S E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      FIBER               STRESSES IN ELEMENT COORD SYSTEM             PRINCIPAL STRESSES (ZERO SHEAR)                 
+    ID.       DISTANCE           NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1   -5.000000E-01      3.629032E-01   1.209677E+00   4.233871E-01    67.5000    1.385050E+00    1.875305E-01   1.301458E+00
+             5.000000E-01      3.629032E-01   1.209677E+00   4.233871E-01    67.5000    1.385050E+00    1.875305E-01   1.301458E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    46
+     F4X                                                                                                                            
+0                                                                                                            SUBCASE 41             
+ 
+                         S T R E S S E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      FIBER               STRESSES IN ELEMENT COORD SYSTEM             PRINCIPAL STRESSES (ZERO SHEAR)                 
+    ID.       DISTANCE           NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1   -5.000000E-01     -1.209677E+00  -3.629032E-01   4.233871E-01    67.5000   -1.875305E-01   -1.385050E+00   1.301458E+00
+             5.000000E-01     -1.209677E+00  -3.629032E-01   4.233871E-01    67.5000   -1.875305E-01   -1.385050E+00   1.301458E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    47
+     F4Y                                                                                                                            
+0                                                                                                            SUBCASE 42             
+ 
+                         S T R E S S E S   I N   Q U A D R I L A T E R A L   E L E M E N T S   ( Q U A D 4 )
+  ELEMENT      FIBER               STRESSES IN ELEMENT COORD SYSTEM             PRINCIPAL STRESSES (ZERO SHEAR)                 
+    ID.       DISTANCE           NORMAL-X       NORMAL-Y      SHEAR-XY       ANGLE         MAJOR           MINOR        VON MISES
+0       1   -5.000000E-01      3.629032E-01   1.209677E+00  -4.233871E-01   -67.5000    1.385050E+00    1.875305E-01   1.301458E+00
+             5.000000E-01      3.629032E-01   1.209677E+00  -4.233871E-01   -67.5000    1.385050E+00    1.875305E-01   1.301458E+00
+1    THIS IS A DEFAULT SUBCASE.                                               MARCH  30, 2021  MSC Nastran  4/21/16   PAGE    48
+                                                                                                                                    
+0                                                                                                                                   
+ * * * *  D B D I C T   P R I N T  * * * *      SUBDMAP = PRTSUM  ,  DMAP STATEMENT NO.     68
+
+
+
+0                                   * * * *  A N A L Y S I S  S U M M A R Y  T A B L E  * * * *
+0 SEID  PEID PROJ VERS APRCH      SEMG SEMR SEKR SELG SELR MODES DYNRED SOLLIN PVALID SOLNL LOOPID DESIGN CYCLE SENSITIVITY
+ --------------------------------------------------------------------------------------------------------------------------
+     0     0    1   10 '        '    T    T    T    T    T     F      F      T      0     F     -1            0           F
+0SEID = SUPERELEMENT ID.
+ PEID = PRIMARY SUPERELEMENT ID OF IMAGE SUPERELEMENT.
+ PROJ = PROJECT ID NUMBER.
+ VERS = VERSION ID.
+ APRCH = BLANK FOR STRUCTURAL ANALYSIS.  HEAT FOR HEAT TRANSFER ANALYSIS.
+ SEMG = STIFFNESS AND MASS MATRIX GENERATION STEP.
+ SEMR = MASS MATRIX REDUCTION STEP (INCLUDES EIGENVALUE SOLUTION FOR MODES).
+ SEKR = STIFFNESS MATRIX REDUCTION STEP.
+ SELG = LOAD MATRIX GENERATION STEP.
+ SELR = LOAD MATRIX REDUCTION STEP. 
+ MODES = T (TRUE) IF NORMAL MODES OR BUCKLING MODES CALCULATED.
+ DYNRED = T (TRUE) MEANS GENERALIZED DYNAMIC AND/OR COMPONENT MODE REDUCTION PERFORMED.
+ SOLLIN = T (TRUE) IF LINEAR SOLUTION EXISTS IN DATABASE.
+ PVALID = P-DISTRIBUTION ID OF P-VALUE FOR P-ELEMENTS
+ LOOPID = THE LAST LOOPID VALUE USED IN THE NONLINEAR ANALYSIS.  USEFUL FOR RESTARTS.
+ SOLNL = T (TRUE) IF NONLINEAR SOLUTION EXISTS IN DATABASE.
+ DESIGN CYCLE = THE LAST DESIGN CYCLE (ONLY VALID IN OPTIMIZATION).
+ SENSITIVITY = SENSITIVITY MATRIX GENERATION FLAG.
+ 
+ No PARAM values were set in the Control File.
+ 
+1                                        * * * END OF JOB * * *
+ 
+ 
+ No Symbolic Replacement variables or values were specified.
+
