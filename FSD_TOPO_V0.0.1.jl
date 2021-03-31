@@ -27,7 +27,6 @@ KE = [ 	[1 D A G     B -D C G];
 		]'	
 
 
-	
 end	
 	
 
