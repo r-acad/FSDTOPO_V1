@@ -49,15 +49,17 @@ F[2] = -1.0	   # Applied external force
 		
 U = zeros(nDoF)	# Initialize global displacements
 
+#th = 1.0 .* ones(1:nely,1:nelx) # Initialize thickness distribution	
+	
 th = OffsetArray(zeros(1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
-th[1:nely,1:nelx] .= 1.0	# Initialize thickness distribution in domain
+th[1:nely,1:nelx] .= 1.0	# Initialize thickness distribution in domain	
 	
 fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
 alldofs   = Vector(1:nDoF)
 freedofs  = setdiff(alldofs,fixeddofs)			
 end;
 
-# ╔═╡ 07c52370-93a1-11eb-08ec-4d93e5b75701
+# ╔═╡ 6bd11d90-93c1-11eb-1368-c9484c1302ee
 md""" ### FE SOLVER FUNCTIONS  """
 
 # ╔═╡ d108d820-920d-11eb-2eee-bb6470fb4a56
@@ -67,7 +69,7 @@ md"""
 
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 function KE_CQUAD4()
-# Element stiffness matrix reverse-engineered from NASTRAN with E = 1, t = 1, nu=.3
+# Element stiffness matrix reverse-engineered from NASTRAN with E = 1, t = 1, nu=.03
 		
 A = -5.766129E-01; B = -6.330645E-01 ; C =  2.096774E-01 ; D = 3.931452E-01	; G = 3.024194E-02	
 
@@ -109,7 +111,7 @@ end
 
 # ╔═╡ c1711000-920b-11eb-14ba-eb5ce08f3941
 function SU_CQUAD4()
-# Matrix relating cartesian stress components (sxx, syy, sxy) with nodal displacements in CQUAD4 element, reverse-engineered from NASTRAN with E = 1, t = 1, nu=.3
+# Matrix relating cartesian stress components (sxx, syy, sxy) with nodal displacements in CQUAD4 element, reverse-engineered from NASTRAN with E = 1, t = 1, nu=.03
 		
 A = -1.209677E+00 ; B = -3.629032E-01 ; C = -4.233871E-01   	
 
@@ -129,9 +131,9 @@ end
 begin
 
 function INTERNAL_LOADS()
-		
+#######################	
 	
-S = zeros(1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component of function)
+S = zeros(1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component or function)
 SUe = SU_CQUAD4() # Matrix that relates element stresses to nodal displacements
 		
 for y = 1:nely, x = 1:nelx			
@@ -139,7 +141,7 @@ for y = 1:nely, x = 1:nelx
 	n1 = (nely+1)*(x-1)+y;	n2 = (nely+1)* x +y	
 	Ue = U[[2*n1-1;2*n1; 2*n2-1;2*n2; 2*n2+1;2*n2+2; 2*n1+1;2*n1+2],1]
 		
-	Te = (SUe * Ue) .* nelx  # Element stress vector in x, y coordinates. Scaled by mesh size
+	Te = (SUe * Ue) .* nelx  # Element stress tensor in x, y coordinates. Scaled by mesh size
 	sxx = Te[1] ; syy = Te[2] ; sxy = Te[3]
 	
 	# Principal stresses
@@ -166,22 +168,18 @@ sigma_all	= 6
 max_all_t = 5
 full_penalty_iter = 10
 max_penalty = 5
-min_thick = 0.01	
-
-t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain	
+min_thick = 0.00001
+		
+		
+t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
 		
 for iter in 1:niter
-			
-	# Resize loop		
 	NODAL_DISPLACEMENTS(t)
 	ESE = INTERNAL_LOADS()		
 		
-	penalty = min(1 + iter / full_penalty_iter, max_penalty)	
-			
+	penalty = min(1 + iter / full_penalty_iter, max_penalty)		
 	t .*= ESE / sigma_all					
 	t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]	
-
-			
 """			
 	# Filter loop				
 t = [sum(th[i.+CartesianIndices((-1:1, -1:1))].*
@@ -190,17 +188,16 @@ t = [sum(th[i.+CartesianIndices((-1:1, -1:1))].*
 				   1 2 1] ./16)
 		) for i in CartesianIndices(t)]						
 """
-			
+		
 end		
 		
 return t # retuns a view of the canvas containing only the thickness domain
-		
 end # end function
 	
 end
 
 # ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
-newt = FSDTOPO(th, 24);
+newt = FSDTOPO(th, 25);
 
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
 heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
@@ -209,14 +206,14 @@ heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical 
 #heatmap(reverse(SU_CQUAD4(), dims=1), aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))
 
 # ╔═╡ Cell order:
-# ╟─13b32a20-9206-11eb-3af7-0feea278594c
+# ╠═13b32a20-9206-11eb-3af7-0feea278594c
 # ╠═fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═c4c9ace0-9237-11eb-1f26-334caba1248d
-# ╟─4aba92de-9212-11eb-2089-073a71342bb0
-# ╠═07c52370-93a1-11eb-08ec-4d93e5b75701
+# ╠═4aba92de-9212-11eb-2089-073a71342bb0
+# ╠═6bd11d90-93c1-11eb-1368-c9484c1302ee
 # ╠═944f5b10-9236-11eb-05c2-45824bc3b532
 # ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
