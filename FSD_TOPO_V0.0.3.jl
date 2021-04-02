@@ -48,11 +48,9 @@ F = zeros(nDoF)	# Initialize external forces vector
 F[2] = -1.0	   # Applied external force
 		
 U = zeros(nDoF)	# Initialize global displacements
-
-#th = 1.0 .* ones(1:nely,1:nelx) # Initialize thickness distribution	
 	
 th = OffsetArray(zeros(1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
-th[1:nely,1:nelx] .= 1.0	# Initialize thickness distribution in domain	
+
 	
 fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
 alldofs   = Vector(1:nDoF)
@@ -141,7 +139,7 @@ for y = 1:nely, x = 1:nelx
 	n1 = (nely+1)*(x-1)+y;	n2 = (nely+1)* x +y	
 	Ue = U[[2*n1-1;2*n1; 2*n2-1;2*n2; 2*n2+1;2*n2+2; 2*n1+1;2*n1+2],1]
 		
-	Te = (SUe * Ue) .* nelx  # Element stress tensor in x, y coordinates. Scaled by mesh size
+	Te = (SUe * Ue) .* nelx  # Element stress vector in x, y coordinates. Scaled by mesh size
 	sxx = Te[1] ; syy = Te[2] ; sxy = Te[3]
 	
 	# Principal stresses
@@ -162,36 +160,42 @@ end;
 # ╔═╡ c4c9ace0-9237-11eb-1f26-334caba1248d
 begin
 
-function FSDTOPO(th, niter)	
+function FSDTOPO( niter)	
 	
-sigma_all	= 6
+sigma_all	= 1
 max_all_t = 5
-full_penalty_iter = 10
+full_penalty_iter = 5
 max_penalty = 5
+thick_ini = 1.0		
 min_thick = 0.00001
-		
+
+th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
 		
 t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
 		
 for iter in 1:niter
 	NODAL_DISPLACEMENTS(t)
 	ESE = INTERNAL_LOADS()		
-		
-	penalty = min(1 + iter / full_penalty_iter, max_penalty)		
-	t .*= ESE / sigma_all					
-	t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]	
-						
+				
+	t .*= ESE / sigma_all # Obtain new thickness by FSD algorithm
+	t = [min(nt, max_all_t) for nt in t]
+
 			
-			
-			
-"""			
-	# Filter loop				
-t = [sum(th[i.+CartesianIndices((-1:1, -1:1))].*
-				( [1 2 1 ;
+	# Filter loop					
+
+t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
+				.*( [1 2 1 ;
 				   2 4 2 ;
 				   1 2 1] ./16)
 		) for i in CartesianIndices(t)]						
-"""
+
+			
+penalty = min(1 + iter / full_penalty_iter, max_penalty)		
+			
+t = [max(max_all_t*(nt^penalty), min_thick) for nt in t]				
+		
+			
+#t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
 		
 end		
 		
@@ -201,7 +205,7 @@ end # end function
 end
 
 # ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
-newt = FSDTOPO(th, 25);
+newt = FSDTOPO(15);
 
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
 heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
@@ -211,7 +215,7 @@ heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical 
 
 # ╔═╡ Cell order:
 # ╠═13b32a20-9206-11eb-3af7-0feea278594c
-# ╠═fc7e00a0-9205-11eb-039c-23469b96de19
+# ╟─fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
