@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.12.21
+# v0.14.0
 
 using Markdown
 using InteractiveUtils
@@ -39,7 +39,7 @@ md"""
 # ╔═╡ f60365a0-920d-11eb-336a-bf5953215934
 begin
 
-scale = 1
+scale = 2
 nelx = 60*scale ; nely = 20*scale  #mesh size
 
 nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
@@ -168,6 +168,7 @@ full_penalty_iter = 5
 max_penalty = 5
 thick_ini = 1.0		
 min_thick = 0.00001
+		
 
 th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
 		
