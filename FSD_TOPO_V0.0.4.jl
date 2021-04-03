@@ -89,29 +89,50 @@ fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
 alldofs   = Vector(1:nDoF)
 freedofs  = setdiff(alldofs,fixeddofs)	
 	
-nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
-	
-edofVec = reshape(2*nodenrs[1:end-1,1:end-1].+1,nelx*nely,1)
-	
-edofMat = repeat(edofVec,1,8)+repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely,1);
+"""
 
+edofVec = 2*nodenrs[1:end-1,1:end-1].+1
 	
+edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely,1);
+
 iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
 jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
 	
+nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)	
+"""	
 
+nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
+
+edofVec = ((nodenrs[1:end-1,1:end-1].*2).+1)[:]
+
+edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely)
+
+iK = convert(Array{Int64},reshape(kron(edofMat,ones(8,1))',64*nelx*nely))
+jK = convert(Array{Int64},reshape(kron(edofMat,ones(1,8))',64*nelx*nely))
+	
+#iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
+#jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
+	
+	
+	
 KE = KE_CQUAD4()
 
 end;
-
-# ╔═╡ 5a570368-95a9-4427-b378-7e59f02ae20a
-edofMat
 
 # ╔═╡ d1f6b4c5-85fa-466d-913c-534d03dd504e
 nodenrs
 
 # ╔═╡ b5d2f972-1e8b-496c-ad3e-a9f3a0b8a6af
 edofVec
+
+# ╔═╡ 5a570368-95a9-4427-b378-7e59f02ae20a
+edofMat
+
+# ╔═╡ d167b887-241d-448b-800a-267fe221fd94
+kron(edofMat,ones(8,1))'
+
+# ╔═╡ 2d5da171-d315-49e3-953d-f8b5e02a9987
+kron(edofMat,ones(1,8))'
 
 # ╔═╡ c407d096-aa8c-496d-9444-202b21d20a01
 iK
@@ -120,7 +141,7 @@ iK
 jK
 
 # ╔═╡ eed54504-2bc7-4bb6-aa56-18ad25be45b6
-heatmap(reverse(iK', dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+heatmap(reverse(jK', dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ e00e6e1b-f775-4435-be78-25038f7e4fe6
 begin
@@ -140,11 +161,13 @@ t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickne
 	
 
 			
-sK = [KE[:].*t[:][l]  for l in 1:nelx*nely  ][1]    #  ',64*nelx*nely
+sK = vcat([KE[:].*(t[:][l])  for l in 1:nelx*nely]...)    #  ',64*nelx*nely
 		
-K = sparse(iK[:,1],jK[:,1],sK)
+#sK = ones(Int64,64)
+	
+K = sparse(iK,jK,sK)
 			
-K = (K+K')/2
+#K = (K+K')./2
 		
 U(freedofs) = K(freedofs,freedofs)\F(freedofs)			
 			
@@ -154,16 +177,16 @@ U(freedofs) = K(freedofs,freedofs)\F(freedofs)
 end
 
 # ╔═╡ f0deed25-933d-4c9d-a86f-0aa8166eb837
-reshape(sK, 8,8)
+sK
 
 # ╔═╡ eb797772-c2fe-45e5-a4e5-eeb6c478c15b
-Matrix(K)
+K
 
-# ╔═╡ 95d7af18-46ae-4ddf-88e1-64cb55bb8bde
-K-reshape(sK, 8,8)
+# ╔═╡ ff86dec7-f6a3-416b-ad6e-8affc3800bd6
+heatmap(reverse([reshape(sK, 8,8) zeros(8,1) KE], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ 87da1a10-3010-498d-8568-76cba4be38e5
-heatmap(reverse([Matrix(K) zeros(8,2) KE], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+heatmap(reverse([Matrix(K) zeros(8,1) KE], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 begin
@@ -324,17 +347,19 @@ end
 # ╟─fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
-# ╠═5a570368-95a9-4427-b378-7e59f02ae20a
 # ╠═d1f6b4c5-85fa-466d-913c-534d03dd504e
 # ╠═b5d2f972-1e8b-496c-ad3e-a9f3a0b8a6af
+# ╠═5a570368-95a9-4427-b378-7e59f02ae20a
+# ╠═d167b887-241d-448b-800a-267fe221fd94
+# ╠═2d5da171-d315-49e3-953d-f8b5e02a9987
 # ╠═c407d096-aa8c-496d-9444-202b21d20a01
 # ╠═20e299bc-9f3a-4f2d-a4ab-9355425afb12
 # ╠═eed54504-2bc7-4bb6-aa56-18ad25be45b6
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═e00e6e1b-f775-4435-be78-25038f7e4fe6
 # ╠═f0deed25-933d-4c9d-a86f-0aa8166eb837
+# ╠═ff86dec7-f6a3-416b-ad6e-8affc3800bd6
 # ╠═eb797772-c2fe-45e5-a4e5-eeb6c478c15b
-# ╠═95d7af18-46ae-4ddf-88e1-64cb55bb8bde
 # ╠═87da1a10-3010-498d-8568-76cba4be38e5
 # ╠═c4c9ace0-9237-11eb-1f26-334caba1248d
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
@@ -345,5 +370,5 @@ end
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c652e5c0-9207-11eb-3310-ddef16cdb1ac
-# ╠═c1711000-920b-11eb-14ba-eb5ce08f3941
+# ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
 # ╟─c58a7360-920c-11eb-2a15-bda7ed075812
