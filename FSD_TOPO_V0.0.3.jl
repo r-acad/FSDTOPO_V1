@@ -44,12 +44,12 @@ nelx = 60*scale ; nely = 20*scale  #mesh size
 
 nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
 	
-F = zeros(nDoF)	# Initialize external forces vector
+F = zeros(Float64, nDoF)	# Initialize external forces vector
 F[2] = -1.0	   # Applied external force
 		
 U = zeros(nDoF)	# Initialize global displacements
 	
-th = OffsetArray(zeros(1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
+th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
 
 	
 fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
@@ -87,7 +87,7 @@ end
 begin
 
 function NODAL_DISPLACEMENTS(th)
-K = zeros(nDoF, nDoF)	# Initialize global stiffness matrix
+K = zeros(Float64,nDoF, nDoF)	# Initialize global stiffness matrix
 KE = KE_CQUAD4()
 	
 for y = 1:nely, x = 1:nelx			
@@ -131,10 +131,10 @@ begin
 function INTERNAL_LOADS()
 #######################	
 	
-S = zeros(1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component or function)
+S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component or function)
 SUe = SU_CQUAD4() # Matrix that relates element stresses to nodal displacements
 		
-for y = 1:nely, x = 1:nelx			
+for y = 1:nely, x = 1:nelx		
 	# Node numbers, starting at top left corner and growing in columns going down as per in 99 lines of code		
 	n1 = (nely+1)*(x-1)+y;	n2 = (nely+1)* x +y	
 	Ue = U[[2*n1-1;2*n1; 2*n2-1;2*n2; 2*n2+1;2*n2+2; 2*n1+1;2*n1+2],1]
@@ -162,7 +162,7 @@ begin
 
 function FSDTOPO( niter)	
 	
-sigma_all	= 1
+sigma_all	= 6
 max_all_t = 5
 full_penalty_iter = 5
 max_penalty = 5
@@ -182,13 +182,13 @@ for iter in 1:niter
 
 			
 	# Filter loop					
-
+"""
 t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
 				.*( [1 2 1 ;
 				   2 4 2 ;
 				   1 2 1] ./16)
 		) for i in CartesianIndices(t)]						
-
+"""
 			
 penalty = min(1 + iter / full_penalty_iter, max_penalty)		
 			
