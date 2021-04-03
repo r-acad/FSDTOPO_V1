@@ -18,11 +18,12 @@ begin
 			Pkg.PackageSpec(name="ForwardDiff"),
 			Pkg.PackageSpec(name="LaTeXStrings"),
 			Pkg.PackageSpec(name="OffsetArrays"),
+			Pkg.PackageSpec(name="SparseArrays"),
 			])
 
 	using PlutoUI
 	using Colors, ColorSchemes, Images
-	using Plots, OffsetArrays
+	using Plots, OffsetArrays, SparseArrays
 	using LaTeXStrings
 	
 	using Statistics, LinearAlgebra  # standard libraries
@@ -36,26 +37,11 @@ md"""
 ### INITIALIZE MODEL
 """
 
-# ╔═╡ f60365a0-920d-11eb-336a-bf5953215934
-begin
+# ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
+ #newt = FSDTOPO(2);
 
-scale = 3
-nelx = 60*scale ; nely = 20*scale  #mesh size
-
-nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
-	
-F = zeros(Float64, nDoF)	# Initialize external forces vector
-F[2] = -1.0	   # Applied external force
-		
-U = zeros(nDoF)	# Initialize global displacements
-	
-th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
-
-	
-fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
-alldofs   = Vector(1:nDoF)
-freedofs  = setdiff(alldofs,fixeddofs)			
-end;
+# ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
+heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ 6bd11d90-93c1-11eb-1368-c9484c1302ee
 md""" ### FE SOLVER FUNCTIONS  """
@@ -83,10 +69,122 @@ KE = [ 	[ 1  D  A -G   B -D  C  G];
 end	
 	
 
-# ╔═╡ 944f5b10-9236-11eb-05c2-45824bc3b532
+# ╔═╡ f60365a0-920d-11eb-336a-bf5953215934
+begin
+
+scale = 1
+nelx = 1*scale ; nely = 1*scale  #mesh size
+
+nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
+	
+F = zeros(Float64, nDoF)	# Initialize external forces vector
+F[2] = -1.0	   # Applied external force
+		
+#U = zeros(nDoF)	# Initialize global displacements
+	
+th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
+
+	
+fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
+alldofs   = Vector(1:nDoF)
+freedofs  = setdiff(alldofs,fixeddofs)	
+	
+nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
+	
+edofVec = reshape(2*nodenrs[1:end-1,1:end-1].+1,nelx*nely,1)
+	
+edofMat = repeat(edofVec,1,8)+repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely,1);
+
+	
+iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
+jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
+	
+
+KE = KE_CQUAD4()
+
+end;
+
+# ╔═╡ 5a570368-95a9-4427-b378-7e59f02ae20a
+edofMat
+
+# ╔═╡ d1f6b4c5-85fa-466d-913c-534d03dd504e
+nodenrs
+
+# ╔═╡ b5d2f972-1e8b-496c-ad3e-a9f3a0b8a6af
+edofVec
+
+# ╔═╡ c407d096-aa8c-496d-9444-202b21d20a01
+iK
+
+# ╔═╡ 20e299bc-9f3a-4f2d-a4ab-9355425afb12
+jK
+
+# ╔═╡ eed54504-2bc7-4bb6-aa56-18ad25be45b6
+heatmap(reverse(iK', dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+
+# ╔═╡ e00e6e1b-f775-4435-be78-25038f7e4fe6
+begin
+
+	
+sigma_all	= 6
+max_all_t = 5
+full_penalty_iter = 15
+max_penalty = 5
+thick_ini = 1.0		
+min_thick = 0.00001
+		
+
+th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
+		
+t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
+	
+
+			
+sK = [KE[:].*t[:][l]  for l in 1:nelx*nely  ][1]    #  ',64*nelx*nely
+		
+K = sparse(iK[:,1],jK[:,1],sK)
+			
+K = (K+K')/2
+		
+U(freedofs) = K(freedofs,freedofs)\F(freedofs)			
+			
+		
+
+	
+end
+
+# ╔═╡ f0deed25-933d-4c9d-a86f-0aa8166eb837
+reshape(sK, 8,8)
+
+# ╔═╡ eb797772-c2fe-45e5-a4e5-eeb6c478c15b
+Matrix(K)
+
+# ╔═╡ 95d7af18-46ae-4ddf-88e1-64cb55bb8bde
+K-reshape(sK, 8,8)
+
+# ╔═╡ 87da1a10-3010-498d-8568-76cba4be38e5
+heatmap(reverse([Matrix(K) zeros(8,2) KE], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+
+# ╔═╡ a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 begin
 
 function NODAL_DISPLACEMENTS(th)
+KE = KE_CQUAD4()
+		
+sK = reshape(KE[:],64*nelx*nely,1)
+		
+K = sparse(iK,jK,sK); K = (K+K')/2
+		
+U(freedofs) = K(freedofs,freedofs)\F(freedofs)
+		
+end # function
+	
+end
+
+# ╔═╡ 944f5b10-9236-11eb-05c2-45824bc3b532
+begin
+
+function NODAL_DISPLACEMENTS_99(th)
 K = zeros(Float64,nDoF, nDoF)	# Initialize global stiffness matrix
 KE = KE_CQUAD4()
 	
@@ -105,7 +203,7 @@ end # function
 end
 
 # ╔═╡ c652e5c0-9207-11eb-3310-ddef16cdb1ac
-#heatmap(reverse(KE_CQUAD4(), dims=1), aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))
+#heatmap(reverse(KE_CQUAD4(), dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ c1711000-920b-11eb-14ba-eb5ce08f3941
 function SU_CQUAD4()
@@ -175,7 +273,20 @@ th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
 t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
 		
 for iter in 1:niter
-	NODAL_DISPLACEMENTS(t)
+	#NODAL_DISPLACEMENTS(t)
+
+
+sK = hcat([KE[:].*t[:][l]  for l in 1:nelx*nely  ]...)[:] #  ',64*nelx*nely
+			
+print(sK)
+		
+K = sparse(iK[:,1],jK[:,1],sK)
+			
+K = (K+K')/2
+		
+U(freedofs) = K(freedofs,freedofs)\F(freedofs)			
+			
+			
 	ESE = INTERNAL_LOADS()		
 				
 	t .*= ESE / sigma_all # Obtain new thickness by FSD algorithm
@@ -205,12 +316,6 @@ end # end function
 	
 end
 
-# ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
-newt = FSDTOPO(25);
-
-# ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
-heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
-
 # ╔═╡ c58a7360-920c-11eb-2a15-bda7ed075812
 #heatmap(reverse(SU_CQUAD4(), dims=1), aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))
 
@@ -219,14 +324,26 @@ heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical 
 # ╟─fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
+# ╠═5a570368-95a9-4427-b378-7e59f02ae20a
+# ╠═d1f6b4c5-85fa-466d-913c-534d03dd504e
+# ╠═b5d2f972-1e8b-496c-ad3e-a9f3a0b8a6af
+# ╠═c407d096-aa8c-496d-9444-202b21d20a01
+# ╠═20e299bc-9f3a-4f2d-a4ab-9355425afb12
+# ╠═eed54504-2bc7-4bb6-aa56-18ad25be45b6
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
+# ╠═e00e6e1b-f775-4435-be78-25038f7e4fe6
+# ╠═f0deed25-933d-4c9d-a86f-0aa8166eb837
+# ╠═eb797772-c2fe-45e5-a4e5-eeb6c478c15b
+# ╠═95d7af18-46ae-4ddf-88e1-64cb55bb8bde
+# ╠═87da1a10-3010-498d-8568-76cba4be38e5
 # ╠═c4c9ace0-9237-11eb-1f26-334caba1248d
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
 # ╠═6bd11d90-93c1-11eb-1368-c9484c1302ee
+# ╠═a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 # ╠═944f5b10-9236-11eb-05c2-45824bc3b532
 # ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c652e5c0-9207-11eb-3310-ddef16cdb1ac
-# ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
+# ╠═c1711000-920b-11eb-14ba-eb5ce08f3941
 # ╟─c58a7360-920c-11eb-2a15-bda7ed075812
