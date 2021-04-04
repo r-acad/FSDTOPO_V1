@@ -40,65 +40,6 @@ md"""
 # ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
  #newt = FSDTOPO(2);
 
-# ╔═╡ c4c9ace0-9237-11eb-1f26-334caba1248d
-begin
-
-function FSDTOPO( niter)	
-	
-sigma_all	= 6
-max_all_t = 5
-full_penalty_iter = 15
-max_penalty = 5
-thick_ini = 1.0		
-min_thick = 0.00001
-		
-
-th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
-		
-t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
-	
-
-			
-sK = vcat([KE[:].*(t[:][l])  for l in 1:nelx*nely]...)    #  ',64*nelx*nely
-		
-#sK = ones(Int64,64)
-	
-K = sparse(iK,jK,sK)
-			
-#K = (K+K')./2
-		
-U(freedofs) = K(freedofs,freedofs)\F(freedofs)			
-			
-			
-	ESE = INTERNAL_LOADS()		
-				
-	t .*= ESE / sigma_all # Obtain new thickness by FSD algorithm
-	t = [min(nt, max_all_t) for nt in t]
-
-			
-	# Filter loop					
-"""
-t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
-				.*( [1 2 1 ;
-				   2 4 2 ;
-				   1 2 1] ./16)
-		) for i in CartesianIndices(t)]						
-"""
-			
-penalty = min(1 + iter / full_penalty_iter, max_penalty)		
-			
-t = [max(max_all_t*(nt^penalty), min_thick) for nt in t]				
-		
-			
-#t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
-		
-end		
-		
-return t # retuns a view of the canvas containing only the thickness domain
-end # end function
-	
-end
-
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
 heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
@@ -149,11 +90,9 @@ alldofs   = Vector(1:nDoF)
 freedofs  = setdiff(alldofs,fixeddofs)	
 	
 """
-
 edofVec = 2*nodenrs[1:end-1,1:end-1].+1
 	
 edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely,1);
-
 iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
 jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
 	
@@ -337,6 +276,67 @@ end # function
 	
 end;
 
+# ╔═╡ c4c9ace0-9237-11eb-1f26-334caba1248d
+begin
+
+function FSDTOPO( niter)	
+	
+sigma_all	= 6
+max_all_t = 5
+full_penalty_iter = 15
+max_penalty = 5
+thick_ini = 1.0		
+min_thick = 0.00001
+		
+
+th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
+		
+t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
+		
+for iter in 1:niter
+	#NODAL_DISPLACEMENTS(t)
+
+
+sK = hcat([KE[:].*t[:][l]  for l in 1:nelx*nely  ]...)[:] #  ',64*nelx*nely
+			
+print(sK)
+		
+K = sparse(iK[:,1],jK[:,1],sK)
+			
+K = (K+K')/2
+		
+U(freedofs) = K(freedofs,freedofs)\F(freedofs)			
+			
+			
+	ESE = INTERNAL_LOADS()		
+				
+	t .*= ESE / sigma_all # Obtain new thickness by FSD algorithm
+	t = [min(nt, max_all_t) for nt in t]
+
+			
+	# Filter loop					
+"""
+t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
+				.*( [1 2 1 ;
+				   2 4 2 ;
+				   1 2 1] ./16)
+		) for i in CartesianIndices(t)]						
+"""
+			
+penalty = min(1 + iter / full_penalty_iter, max_penalty)		
+			
+t = [max(max_all_t*(nt^penalty), min_thick) for nt in t]				
+		
+			
+#t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
+		
+end		
+		
+return t # retuns a view of the canvas containing only the thickness domain
+end # end function
+	
+end
+
 # ╔═╡ c58a7360-920c-11eb-2a15-bda7ed075812
 #heatmap(reverse(SU_CQUAD4(), dims=1), aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))
 
@@ -370,3 +370,15 @@ end;
 # ╟─c652e5c0-9207-11eb-3310-ddef16cdb1ac
 # ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
 # ╟─c58a7360-920c-11eb-2a15-bda7ed075812
+© 2021 GitHub, Inc.
+Terms
+Privacy
+Security
+Status
+Docs
+Contact GitHub
+Pricing
+API
+Training
+Blog
+About

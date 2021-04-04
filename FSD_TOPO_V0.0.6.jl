@@ -32,72 +32,35 @@ end
 # ╔═╡ 13b32a20-9206-11eb-3af7-0feea278594c
 TableOfContents(aside=true)
 
+# ╔═╡ d3a4076c-04a1-4f2c-8c0c-d2a0a86c51a4
+md""" ### VERSION STATUS
+
+- It runs but it seems numbering convention is wrong as results don't make sense, strain field is non physical (4/4/21)  v0.0.6
+
+
+"""
+
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
 ### INITIALIZE MODEL
 """
 
-# ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
- #newt = FSDTOPO(2);
-
-# ╔═╡ c4c9ace0-9237-11eb-1f26-334caba1248d
+# ╔═╡ 6b8a46b1-50b2-4103-831f-f002afb65b9c
 begin
-
-function FSDTOPO( niter)	
-	
 sigma_all	= 6
 max_all_t = 5
 full_penalty_iter = 15
 max_penalty = 5
 thick_ini = 1.0		
 min_thick = 0.00001
-		
-
-th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
-		
-t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
-	
-
-			
-sK = vcat([KE[:].*(t[:][l])  for l in 1:nelx*nely]...)    #  ',64*nelx*nely
-		
-#sK = ones(Int64,64)
-	
-K = sparse(iK,jK,sK)
-			
-#K = (K+K')./2
-		
-U(freedofs) = K(freedofs,freedofs)\F(freedofs)			
-			
-			
-	ESE = INTERNAL_LOADS()		
-				
-	t .*= ESE / sigma_all # Obtain new thickness by FSD algorithm
-	t = [min(nt, max_all_t) for nt in t]
-
-			
-	# Filter loop					
-"""
-t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
-				.*( [1 2 1 ;
-				   2 4 2 ;
-				   1 2 1] ./16)
-		) for i in CartesianIndices(t)]						
-"""
-			
-penalty = min(1 + iter / full_penalty_iter, max_penalty)		
-			
-t = [max(max_all_t*(nt^penalty), min_thick) for nt in t]				
-		
-			
-#t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
-		
-end		
-		
-return t # retuns a view of the canvas containing only the thickness domain
-end # end function
 	
 end
+
+# ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
+ #newt = FSDTOPO(2);
+
+# ╔═╡ 87da1a10-3010-498d-8568-76cba4be38e5
+#heatmap(reverse([Matrix(K) zeros(8,1) KE zeros(8,1) 2. * KE_CQUAD4_88()], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
 heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
@@ -132,136 +95,61 @@ end
 begin
 
 scale = 1
-nelx = 1*scale ; nely = 1*scale  #mesh size
+nelx = 60*scale ; nely = 20*scale  #mesh size
 
 nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
 	
 F = zeros(Float64, nDoF)	# Initialize external forces vector
 F[2] = -1.0	   # Applied external force
 		
-#U = zeros(nDoF)	# Initialize global displacements
+U = zeros(nDoF)	# Initialize global displacements
 	
 th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
 
+th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain		
+t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness 	
 	
 fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
 alldofs   = Vector(1:nDoF)
 freedofs  = setdiff(alldofs,fixeddofs)	
-	
-"""
-
-edofVec = 2*nodenrs[1:end-1,1:end-1].+1
-	
-edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely,1);
-
-iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
-jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
-	
-nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)	
-"""	
 
 nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
 
-edofVec = ((nodenrs[1:end-1,1:end-1].*2).+1)[:]
-
-edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely)
-
-iK = convert(Array{Int64},reshape(kron(edofMat,ones(8,1))',64*nelx*nely))
-jK = convert(Array{Int64},reshape(kron(edofMat,ones(1,8))',64*nelx*nely))
+edofVec = ((nodenrs[1:end-1,1:end-1].*2).+1)[:]  # 88 lines
+edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely) 
 	
-#iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
-#jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
-	
+iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
+jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
 	
 	
 KE = KE_CQUAD4()
 
 end;
 
-# ╔═╡ d1f6b4c5-85fa-466d-913c-534d03dd504e
-nodenrs
-
-# ╔═╡ b5d2f972-1e8b-496c-ad3e-a9f3a0b8a6af
-edofVec
-
-# ╔═╡ 5a570368-95a9-4427-b378-7e59f02ae20a
-edofMat
-
-# ╔═╡ d167b887-241d-448b-800a-267fe221fd94
-kron(edofMat,ones(8,1))'
-
-# ╔═╡ 2d5da171-d315-49e3-953d-f8b5e02a9987
-kron(edofMat,ones(1,8))'
-
-# ╔═╡ c407d096-aa8c-496d-9444-202b21d20a01
-iK
-
-# ╔═╡ 20e299bc-9f3a-4f2d-a4ab-9355425afb12
-jK
-
-# ╔═╡ eed54504-2bc7-4bb6-aa56-18ad25be45b6
-heatmap(reverse(jK', dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
-
-# ╔═╡ e00e6e1b-f775-4435-be78-25038f7e4fe6
-begin
-
-	
-sigma_all	= 6
-max_all_t = 5
-full_penalty_iter = 15
-max_penalty = 5
-thick_ini = 1.0		
-min_thick = 0.00001
-		
-
-th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
-		
-t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
-	
-
-			
-sK = vcat([KE[:].*(t[:][l])  for l in 1:nelx*nely]...)    #  ',64*nelx*nely
-		
-#sK = ones(Int64,64)
-	
-K = sparse(iK,jK,sK)
-			
-#K = (K+K')./2
-		
-U(freedofs) = K(freedofs,freedofs)\F(freedofs)			
-			
-		
-
-	
-end
-
-# ╔═╡ f0deed25-933d-4c9d-a86f-0aa8166eb837
-sK
-
-# ╔═╡ eb797772-c2fe-45e5-a4e5-eeb6c478c15b
-K
-
-# ╔═╡ ff86dec7-f6a3-416b-ad6e-8affc3800bd6
-heatmap(reverse([reshape(sK, 8,8) zeros(8,1) KE], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
-
-# ╔═╡ 87da1a10-3010-498d-8568-76cba4be38e5
-heatmap(reverse([Matrix(K) zeros(8,1) KE], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
-
 # ╔═╡ a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 begin
 
 function NODAL_DISPLACEMENTS(th)
 KE = KE_CQUAD4()
+
+sK = hcat([KE[:].*t[:][l]  for l in 1:nelx*nely  ]...)[:] #  ',64*nelx*nely		
+	
+K = Symmetric(sparse(iK,jK,sK))
+			
 		
-sK = reshape(KE[:],64*nelx*nely,1)
-		
-K = sparse(iK,jK,sK); K = (K+K')/2
-		
-U(freedofs) = K(freedofs,freedofs)\F(freedofs)
+U[freedofs] = K[freedofs,freedofs]\F[freedofs]	
+
+return K		
 		
 end # function
 	
 end
+
+# ╔═╡ f37be92f-03ef-49a5-a968-c760fb7ae657
+K = NODAL_DISPLACEMENTS(t);
+
+# ╔═╡ 819e3038-a2c8-425a-b5fb-fd896967979c
+heatmap(reverse(Matrix(K), dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ 944f5b10-9236-11eb-05c2-45824bc3b532
 begin
@@ -281,6 +169,22 @@ end # for
 	U[freedofs] = K[freedofs,freedofs] \ F[freedofs]
 
 end # function
+	
+end
+
+# ╔═╡ 3ef71d2c-4511-4d2c-8527-b7c07529c715
+begin
+	
+function KE_CQUAD4_88()   # from 88 lines
+	nu =0.3
+		
+	A11 = [12  3 -6 -3;  3 12  3  0; -6  3 12 -3; -3  0 -3 12];
+	A12 = [-6 -3  0  3; -3 -6 -3 -6;  0 -3 -6  3;  3 -6  3 -6];
+	B11 = [-4  3 -2  9;  3 -4 -9  4; -2 -9 -4 -3;  9  4 -3 -4];
+	B12 = [ 2 -3  4 -9; -3  2  9 -2;  4  9  2  3; -9 -2  3  2];
+	KE = 1/(1-nu^2)/24*([A11 A12;A12' A11]+nu*[B11 B12;B12' B11]);
+		
+end		
 	
 end
 
@@ -337,36 +241,89 @@ end # function
 	
 end;
 
+# ╔═╡ e00e6e1b-f775-4435-be78-25038f7e4fe6
+ESE = INTERNAL_LOADS()		;	
+
+# ╔═╡ ff86dec7-f6a3-416b-ad6e-8affc3800bd6
+heatmap(reverse(ESE, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+
+# ╔═╡ c4c9ace0-9237-11eb-1f26-334caba1248d
+begin
+
+function FSDTOPO( niter)	
+		
+for iter in 1:niter
+
+NODAL_DISPLACEMENTS(t)
+
+	ESE = INTERNAL_LOADS()		
+				
+	t .*= ESE / sigma_all # Obtain new thickness by FSD algorithm
+	t = [min(nt, max_all_t) for nt in t]
+
+			
+	# Filter loop					
+"""
+t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
+				.*( [1 2 1 ;
+				   2 4 2 ;
+				   1 2 1] ./16)
+		) for i in CartesianIndices(t)]						
+"""
+			
+penalty = min(1 + iter / full_penalty_iter, max_penalty)		
+			
+t = [max(max_all_t*(nt^penalty), min_thick) for nt in t]				
+		
+			
+#t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
+		
+end		
+		
+return t # retuns a view of the canvas containing only the thickness domain
+end # end function
+	
+end
+
+# ╔═╡ 77182619-207e-43af-bb53-60cbc9ec605f
+begin  # element DoFs matrix from 99 lines
+
+n1(x,y) = (nely+1)*(x-1)+y
+n2(x,y) = (nely+1)* x +y	
+	
+edof(x,y) = [2*n1(x,y)-1, 2*n1(x,y), 2*n2(x,y)-1, 2*n2(x,y), 2*n2(x,y)+1, 2*n2(x,y)+2, 2*n1(x,y)+1, 2*n1(x,y)+2]
+	
+n1s = [ edof(x,y) for y in 1:nely, x in 1:nelx ]
+
+	
+end	;
+
 # ╔═╡ c58a7360-920c-11eb-2a15-bda7ed075812
 #heatmap(reverse(SU_CQUAD4(), dims=1), aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))
 
 # ╔═╡ Cell order:
-# ╠═13b32a20-9206-11eb-3af7-0feea278594c
+# ╟─13b32a20-9206-11eb-3af7-0feea278594c
 # ╟─fc7e00a0-9205-11eb-039c-23469b96de19
+# ╟─d3a4076c-04a1-4f2c-8c0c-d2a0a86c51a4
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╟─6b8a46b1-50b2-4103-831f-f002afb65b9c
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
-# ╠═d1f6b4c5-85fa-466d-913c-534d03dd504e
-# ╠═b5d2f972-1e8b-496c-ad3e-a9f3a0b8a6af
-# ╠═5a570368-95a9-4427-b378-7e59f02ae20a
-# ╠═d167b887-241d-448b-800a-267fe221fd94
-# ╠═2d5da171-d315-49e3-953d-f8b5e02a9987
-# ╠═c407d096-aa8c-496d-9444-202b21d20a01
-# ╠═20e299bc-9f3a-4f2d-a4ab-9355425afb12
-# ╠═eed54504-2bc7-4bb6-aa56-18ad25be45b6
-# ╠═d007f530-9255-11eb-2329-9502dc270b0d
+# ╟─d007f530-9255-11eb-2329-9502dc270b0d
+# ╠═f37be92f-03ef-49a5-a968-c760fb7ae657
+# ╠═819e3038-a2c8-425a-b5fb-fd896967979c
 # ╠═e00e6e1b-f775-4435-be78-25038f7e4fe6
-# ╠═f0deed25-933d-4c9d-a86f-0aa8166eb837
 # ╠═ff86dec7-f6a3-416b-ad6e-8affc3800bd6
-# ╠═eb797772-c2fe-45e5-a4e5-eeb6c478c15b
 # ╠═87da1a10-3010-498d-8568-76cba4be38e5
-# ╠═c4c9ace0-9237-11eb-1f26-334caba1248d
+# ╟─c4c9ace0-9237-11eb-1f26-334caba1248d
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
-# ╠═6bd11d90-93c1-11eb-1368-c9484c1302ee
-# ╠═a8c96d92-aee1-4a91-baf0-2a585c2fa51f
-# ╠═944f5b10-9236-11eb-05c2-45824bc3b532
-# ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
+# ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
+# ╟─a8c96d92-aee1-4a91-baf0-2a585c2fa51f
+# ╟─944f5b10-9236-11eb-05c2-45824bc3b532
+# ╟─2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
+# ╟─3ef71d2c-4511-4d2c-8527-b7c07529c715
 # ╟─c652e5c0-9207-11eb-3310-ddef16cdb1ac
 # ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
+# ╟─77182619-207e-43af-bb53-60cbc9ec605f
 # ╟─c58a7360-920c-11eb-2a15-bda7ed075812
