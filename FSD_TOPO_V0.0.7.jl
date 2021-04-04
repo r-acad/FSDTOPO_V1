@@ -36,7 +36,11 @@ TableOfContents(aside=true)
 md""" ### VERSION STATUS
 
 - It runs but it seems numbering convention is wrong as results don't make sense, strain field is non physical (4/4/21)  v0.0.6
+- v0.07 Attempt to renumber the matrices according to Nastran ordering with: 
 
+    3        4
+
+    1        2
 
 """
 
@@ -55,6 +59,9 @@ thick_ini = 1.0
 min_thick = 0.00001
 	
 end
+
+# ╔═╡ 9228af13-9913-410a-abb3-2a57d9656616
+
 
 # ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
  #newt = FSDTOPO(2);
@@ -79,14 +86,14 @@ function KE_CQUAD4()
 		
 A = -5.766129E-01; B = -6.330645E-01 ; C =  2.096774E-01 ; D = 3.931452E-01	; G = 3.024194E-02	
 
-KE = [ 	[ 1  D  A -G   B -D  C  G];
-		[ D  1  G  C  -D  B -G  A];
-		[ A  G  1 -D   C -G  B  D];
-		[-G  C -D  1   G  A  D  B];
-		[ B -D  C  G   1  D  A -G];
-		[-D  B -G  A   D  1  G  C];
-		[ C -G  B  D   A  G  1 -D];
-		[ G  A  D  B  -G  C -D  1]		
+KE = [ 	[ 1  D  A -G    C  G   B -D ];
+		[ D  1  G  C   -G  A  -D  B ];
+		[ A  G  1 -D    B  D   C -G ];
+		[-G  C -D  1    D  B   G  A ];
+		[ C -G  B  D    1 -D   A  G ];
+		[ G  A  D  B   -D  1  -G  C ];		
+		[ B -D  C  G    A -G   1  D ];
+		[-D  B -G  A    G  C   D  1 ]
 		]'	
 end	
 	
@@ -95,12 +102,14 @@ end
 begin
 
 scale = 1
-nelx = 1*scale ; nely = 1*scale  #mesh size
+nelx = 60*scale ; nely = 20*scale  #mesh size
 
 nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
 	
 F = zeros(Float64, nDoF)	# Initialize external forces vector
-F[2] = -1.0	   # Applied external force
+#F[2*nely*(nelx+1)+2] = -1.0	   # Applied external force
+	
+F[2] = -1.0	   # Applied external force	
 		
 U = zeros(nDoF)	# Initialize global displacements
 	
@@ -109,7 +118,11 @@ th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initial
 th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain		
 t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness 	
 	
-fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
+#fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]  # 88 lines
+	
+fixeddofs = [[ 1 + (y-1)*2*(nelx+1) for y in 1:(nely+1)] ; (nelx+1)*2] 	
+
+	
 alldofs   = Vector(1:nDoF)
 freedofs  = setdiff(alldofs,fixeddofs)	
 
@@ -118,18 +131,61 @@ nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
 edofVec = ((nodenrs[1:end-1,1:end-1].*2).+1)[:]  # 88 lines
 edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely) 
 	
-iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
-jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
+
 	
+
+n1arr = [ (x + (nelx+1)*(y-1)) for x in 1:nelx, y in 1:nely][:] # array with ids of first nodes of quads
+
+darr = hcat([[2*n1-1, 2*n1, 2*n1+1, 2*n1+2, 
+		(2*n1+2 + 2*(nelx+1) -3), (2*n1+2 + 2*(nelx+1) -2), 
+		(2*n1+2 + 2*(nelx+1) -1), (2*n1+2 + 2*(nelx+1) -0)]  for n1 in n1arr ]...)[:]
+	
+	
+iK = repeat(darr,8)
+jK = kron(darr, ones(Int64, 8))
+
+	
+iK = convert(Array{Int64}, kron(darr,ones(8,1))'[:])
+jK = convert(Array{Int64}, kron(darr,ones(1,8))'[:])		
 	
 KE = KE_CQUAD4()
 
 end;
 
+# ╔═╡ aae944e1-06b6-44f0-aaaf-a176149cf6ac
+fixeddofs
+
+# ╔═╡ bf741625-e24b-4a5c-ad9b-ce95c0f83e93
+freedofs
+
+# ╔═╡ 4520f754-3e71-4762-832e-4112e5c36d6f
+n1arr
+
+# ╔═╡ fb70c9ed-e163-4e7a-bdb8-38b03a69e75b
+darr
+
+# ╔═╡ 59bbe39e-43d0-477d-94ab-54b34558b903
+iK, jK
+
+# ╔═╡ c269f0fb-4949-4a5e-8f67-62ccdbf035fd
+sK = hcat([KE[:].*t[:][l]  for l in 1:nelx*nely  ]...)[:] #  ',64*nelx*nely
+
+# ╔═╡ 8342ee61-62af-4fb7-ab91-013b5a51fefd
+K = Symmetric(sparse(iK,jK,sK))
+
+# ╔═╡ 819e3038-a2c8-425a-b5fb-fd896967979c
+heatmap(reverse(Matrix(K), dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+
+# ╔═╡ 86b31c22-2ce8-4c37-80a1-df40f287cdbd
+U[freedofs] = K[freedofs,freedofs]\F[freedofs]
+
+# ╔═╡ ded9ded3-d1fb-42be-97f5-a3b0049f871d
+det(K[freedofs,freedofs])
+
 # ╔═╡ a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 begin
 
-function NODAL_DISPLACEMENTS(th)
+function NODAL_DISPLACEMENTS()
 KE = KE_CQUAD4()
 
 sK = hcat([KE[:].*t[:][l]  for l in 1:nelx*nely  ]...)[:] #  ',64*nelx*nely		
@@ -146,10 +202,7 @@ end # function
 end
 
 # ╔═╡ f37be92f-03ef-49a5-a968-c760fb7ae657
-K = NODAL_DISPLACEMENTS(t);
-
-# ╔═╡ 819e3038-a2c8-425a-b5fb-fd896967979c
-heatmap(reverse(Matrix(K), dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+NODAL_DISPLACEMENTS();
 
 # ╔═╡ 944f5b10-9236-11eb-05c2-45824bc3b532
 begin
@@ -171,6 +224,28 @@ end # for
 end # function
 	
 end
+
+# ╔═╡ bbdf32f0-933b-41c6-9e08-f6762bc440ed
+function KE_CQUAD4_orig()
+# Element stiffness matrix reverse-engineered from NASTRAN with E = 1, t = 1, nu=.03
+
+# Node orientation;
+#  3 4
+#  1 2
+	
+	
+A = -5.766129E-01; B = -6.330645E-01 ; C =  2.096774E-01 ; D = 3.931452E-01	; G = 3.024194E-02	
+
+KE = [ 	[ 1  D  A -G   B -D  C  G];
+		[ D  1  G  C  -D  B -G  A];
+		[ A  G  1 -D   C -G  B  D];
+		[-G  C -D  1   G  A  D  B];
+		[ B -D  C  G   1  D  A -G];
+		[-D  B -G  A   D  1  G  C];
+		[ C -G  B  D   A  G  1 -D];
+		[ G  A  D  B  -G  C -D  1]		
+		]'	
+end	
 
 # ╔═╡ 3ef71d2c-4511-4d2c-8527-b7c07529c715
 begin
@@ -308,20 +383,31 @@ end	;
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─6b8a46b1-50b2-4103-831f-f002afb65b9c
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
-# ╟─d007f530-9255-11eb-2329-9502dc270b0d
+# ╠═aae944e1-06b6-44f0-aaaf-a176149cf6ac
+# ╠═bf741625-e24b-4a5c-ad9b-ce95c0f83e93
+# ╠═4520f754-3e71-4762-832e-4112e5c36d6f
+# ╠═fb70c9ed-e163-4e7a-bdb8-38b03a69e75b
+# ╠═59bbe39e-43d0-477d-94ab-54b34558b903
+# ╠═c269f0fb-4949-4a5e-8f67-62ccdbf035fd
+# ╠═8342ee61-62af-4fb7-ab91-013b5a51fefd
+# ╠═9228af13-9913-410a-abb3-2a57d9656616
+# ╠═86b31c22-2ce8-4c37-80a1-df40f287cdbd
+# ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═f37be92f-03ef-49a5-a968-c760fb7ae657
 # ╠═819e3038-a2c8-425a-b5fb-fd896967979c
+# ╠═ded9ded3-d1fb-42be-97f5-a3b0049f871d
 # ╠═e00e6e1b-f775-4435-be78-25038f7e4fe6
 # ╠═ff86dec7-f6a3-416b-ad6e-8affc3800bd6
 # ╠═87da1a10-3010-498d-8568-76cba4be38e5
 # ╟─c4c9ace0-9237-11eb-1f26-334caba1248d
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
-# ╟─a8c96d92-aee1-4a91-baf0-2a585c2fa51f
+# ╠═a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 # ╟─944f5b10-9236-11eb-05c2-45824bc3b532
 # ╟─2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
-# ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
+# ╠═cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
+# ╟─bbdf32f0-933b-41c6-9e08-f6762bc440ed
 # ╟─3ef71d2c-4511-4d2c-8527-b7c07529c715
 # ╠═c652e5c0-9207-11eb-3310-ddef16cdb1ac
 # ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
