@@ -33,14 +33,28 @@ TableOfContents(aside=true)
 
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
-### INITIALIZE MODEL
+### INITIALIZE MODEL  0 0 3 OK
+
+- Version 0 0 0, implementation of 99 lines K assembly with FSD topo solver
+
+This version runs properly and gives correct results
 """
+
+# ╔═╡ ca1a1917-9414-4052-a105-c4655b39f902
+begin
+	sigma_all	= 4
+	max_all_t = 5
+	full_penalty_iter = 15
+	max_penalty = 5
+	thick_ini = 1.0		
+	min_thick = 0.00001
+	
+	scale = 1
+	nelx = 1*scale ; nely = 1*scale  #mesh size	
+end
 
 # ╔═╡ f60365a0-920d-11eb-336a-bf5953215934
 begin
-
-scale = 3
-nelx = 60*scale ; nely = 20*scale  #mesh size
 
 nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
 	
@@ -50,7 +64,7 @@ F[2] = -1.0	   # Applied external force
 U = zeros(nDoF)	# Initialize global displacements
 	
 th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
-
+th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
 	
 fixeddofs = [Vector(1:2:2*(nely+1)) ; [nDoF] ]
 alldofs   = Vector(1:nDoF)
@@ -100,6 +114,8 @@ end # for
 	# Solve linear system and get global displacements vector U
 	U[freedofs] = K[freedofs,freedofs] \ F[freedofs]
 
+return K
+		
 end # function
 	
 end
@@ -145,7 +161,7 @@ for y = 1:nely, x = 1:nelx
 	# Principal stresses
 	s1 = 0.5 * (sxx + syy + ((sxx - syy) ^ 2 + 4 * sxy ^ 2) ^ 0.5)
 	s2 = 0.5 * (sxx + syy - ((sxx - syy) ^ 2 + 4 * sxy ^ 2) ^ 0.5)
-	ese = (s1 ^ 2 + s2 ^ 2 + 2 * 0.3 * s1 * s2) ^ 0.5		# elastic strain energy
+	ese = (s1 ^ 2 + s2 ^ 2 - 2 * 0.3 * s1 * s2) ^ 0.5		# elastic strain energy
 		
 	#S[y, x] = Ue'*KE*Ue    # Compliance from 99 lines	
 	S[y, x] = ese
@@ -161,18 +177,9 @@ end;
 begin
 
 function FSDTOPO( niter)	
-	
-sigma_all	= 6
-max_all_t = 5
-full_penalty_iter = 15
-max_penalty = 5
-thick_ini = 1.0		
-min_thick = 0.00001
-		
 
-th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain
-		
 t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
+		
 		
 for iter in 1:niter
 	NODAL_DISPLACEMENTS(t)
@@ -206,7 +213,7 @@ end # end function
 end
 
 # ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
-newt = FSDTOPO(25);
+newt = FSDTOPO(1);
 
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
 heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
@@ -217,7 +224,8 @@ heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical 
 # ╔═╡ Cell order:
 # ╠═13b32a20-9206-11eb-3af7-0feea278594c
 # ╟─fc7e00a0-9205-11eb-039c-23469b96de19
-# ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╠═ca1a1917-9414-4052-a105-c4655b39f902
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═c4c9ace0-9237-11eb-1f26-334caba1248d

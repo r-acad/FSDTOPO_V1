@@ -35,7 +35,7 @@ TableOfContents(aside=true)
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
 ### INITIALIZE MODEL  v 0 0 8
-- Back to original formulation in 88 lines after attemt to reorder elements in v 0 0 6
+- Back to original formulation in 88 lines after attempt to reorder elements in v 0 0 6
 
 """
 
@@ -137,7 +137,7 @@ end
 begin
 
 scale = 1
-nelx = 60*scale ; nely = 20*scale  #mesh size
+nelx = 4*scale ; nely = 3*scale  #mesh size
 
 nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
 	
@@ -147,36 +147,17 @@ F[2] = -1.0	   # Applied external force
 U = zeros(Float64, nDoF)	# Initialize global displacements
 	
 fixeddofs = [(1:2:2*(nely+1))..., nDoF ]
-	
 alldofs   = Vector(1:nDoF)
 freedofs  = setdiff(alldofs,fixeddofs)	
-	
-"""
-
-edofVec = 2*nodenrs[1:end-1,1:end-1].+1
-	
-edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely,1);
-
-iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
-jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
-	
-nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)	
-"""	
 
 nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
 	
 edofVec = ((nodenrs[1:end-1,1:end-1].*2).+1)[:]	
 
 edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely)
-
-iK = reshape(kron(edofMat,ones(Int64,8,1))',64*nelx*nely)
-jK = reshape(kron(edofMat,ones(Int64,1,8))',64*nelx*nely)
 	
 iK = kron(edofMat,ones(Int64,8,1))'[:]
 jK = kron(edofMat,ones(Int64,1,8))'[:]
-	
-#iK = convert(Array{Int64}, kron(edofMat,ones(8,1))'[:])
-#jK = convert(Array{Int64}, kron(edofMat,ones(1,8))'[:])	
 	
 KE = KE_CQUAD4()
 
@@ -227,13 +208,13 @@ K = Symmetric(sparse(iK,jK,sK))
 # ╔═╡ eb797772-c2fe-45e5-a4e5-eeb6c478c15b
 K
 
-# ╔═╡ 87da1a10-3010-498d-8568-76cba4be38e5
-heatmap(reverse(Matrix(K) , dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
-
 # ╔═╡ 12cc1b97-e1eb-4a81-b287-2136aa155a34
 #K = (K+K')./2
 		
 U[freedofs] = K[freedofs,freedofs]\F[freedofs]
+
+# ╔═╡ 87da1a10-3010-498d-8568-76cba4be38e5
+heatmap(reverse([Matrix(K) zeros(8,1) KE] , dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 begin
@@ -337,7 +318,7 @@ heatmap(reverse(SE1, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical =
 # ╔═╡ Cell order:
 # ╠═13b32a20-9206-11eb-3af7-0feea278594c
 # ╟─fc7e00a0-9205-11eb-039c-23469b96de19
-# ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
 # ╠═d1f6b4c5-85fa-466d-913c-534d03dd504e
