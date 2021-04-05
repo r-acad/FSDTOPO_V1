@@ -34,8 +34,9 @@ TableOfContents(aside=true)
 
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
-### INITIALIZE MODEL  v 0 0 8
+### INITIALIZE MODEL  v 0 0 8 OK
 - Back to original formulation in 88 lines after attempt to reorder elements in v 0 0 6
+- This version 0 0 8 OK works in obtaining a meaningful internal loads field
 
 """
 
@@ -44,9 +45,6 @@ md"""
 
 # ╔═╡ 0316391f-3ba8-46da-9c5f-d11e44aba9dc
 #sK = vcat([KE[:].*(t[:][l])  for l in 1:nelx*nely]...)    #  ',64*nelx*nely
-
-# ╔═╡ ff86dec7-f6a3-416b-ad6e-8affc3800bd6
-#heatmap(reverse([reshape(sK, 8,8) zeros(8,1) KE], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ c4c9ace0-9237-11eb-1f26-334caba1248d
 
@@ -137,7 +135,7 @@ end
 begin
 
 scale = 1
-nelx = 4*scale ; nely = 3*scale  #mesh size
+nelx = 60*scale ; nely = 20*scale  #mesh size
 
 nDoF = 	2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
 	
@@ -155,6 +153,10 @@ nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
 edofVec = ((nodenrs[1:end-1,1:end-1].*2).+1)[:]	
 
 edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely)
+
+edofMat = repeat(edofVec,1,8) + repeat([-1 -2 1 0 2*nely.+[3 2 1 0]],nelx*nely)	
+	
+#edofMat =  [ 2 1 4 3 8 7 6 5]	
 	
 iK = kron(edofMat,ones(Int64,8,1))'[:]
 jK = kron(edofMat,ones(Int64,1,8))'[:]
@@ -180,13 +182,13 @@ begin
 end;
 
 # ╔═╡ d1f6b4c5-85fa-466d-913c-534d03dd504e
-nodenrs;
+nodenrs
 
 # ╔═╡ b5d2f972-1e8b-496c-ad3e-a9f3a0b8a6af
-edofVec;
+edofVec
 
 # ╔═╡ 5a570368-95a9-4427-b378-7e59f02ae20a
-edofMat;
+edofMat
 
 # ╔═╡ c407d096-aa8c-496d-9444-202b21d20a01
 iK
@@ -197,24 +199,18 @@ jK
 # ╔═╡ 64e213d1-672e-4bc0-9fd6-3b1f933566a6
 sK = reshape(KE[:]*t[:]', 64*nelx*nely)
 
-# ╔═╡ 11d356ed-ecd8-4521-a961-70c4768d64c9
-KE
-
 # ╔═╡ f2b44b9a-596a-4025-9029-1306ec3d4f1e
 #sK = ones(Int64,64)
 	
-K = Symmetric(sparse(iK,jK,sK))
+K = Symmetric(sparse(iK,jK,sK));
 
-# ╔═╡ eb797772-c2fe-45e5-a4e5-eeb6c478c15b
-K
+# ╔═╡ 87da1a10-3010-498d-8568-76cba4be38e5
+heatmap(reverse(Matrix(K) , dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ 12cc1b97-e1eb-4a81-b287-2136aa155a34
 #K = (K+K')./2
 		
 U[freedofs] = K[freedofs,freedofs]\F[freedofs]
-
-# ╔═╡ 87da1a10-3010-498d-8568-76cba4be38e5
-heatmap(reverse([Matrix(K) zeros(8,1) KE] , dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 begin
@@ -321,6 +317,7 @@ heatmap(reverse(SE1, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical =
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
+# ╠═87da1a10-3010-498d-8568-76cba4be38e5
 # ╠═d1f6b4c5-85fa-466d-913c-534d03dd504e
 # ╠═b5d2f972-1e8b-496c-ad3e-a9f3a0b8a6af
 # ╠═5a570368-95a9-4427-b378-7e59f02ae20a
@@ -329,12 +326,8 @@ heatmap(reverse(SE1, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical =
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═0316391f-3ba8-46da-9c5f-d11e44aba9dc
 # ╠═64e213d1-672e-4bc0-9fd6-3b1f933566a6
-# ╠═11d356ed-ecd8-4521-a961-70c4768d64c9
 # ╠═f2b44b9a-596a-4025-9029-1306ec3d4f1e
 # ╠═12cc1b97-e1eb-4a81-b287-2136aa155a34
-# ╠═ff86dec7-f6a3-416b-ad6e-8affc3800bd6
-# ╠═eb797772-c2fe-45e5-a4e5-eeb6c478c15b
-# ╠═87da1a10-3010-498d-8568-76cba4be38e5
 # ╠═d01c2419-3eb1-410f-b9cf-809146707e47
 # ╠═9d8f3527-3bad-4cdd-abd5-674f3d7a08ec
 # ╠═c4c9ace0-9237-11eb-1f26-334caba1248d
