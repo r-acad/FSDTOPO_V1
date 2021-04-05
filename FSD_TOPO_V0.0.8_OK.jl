@@ -152,9 +152,9 @@ nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
 	
 edofVec = ((nodenrs[1:end-1,1:end-1].*2).+1)[:]	
 
-edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely)
+# edofMat = repeat(edofVec,1,8) + repeat([0 1 2*nely.+[2 3 0 1] -2 -1],nelx*nely) ORIG 88 lines
 
-edofMat = repeat(edofVec,1,8) + repeat([-1 -2 1 0 2*nely.+[3 2 1 0]],nelx*nely)	
+edofMat = repeat(edofVec,1,8) + repeat([-1 -2 1 0 2*nely.+[3 2 1 0]],nelx*nely)	# order changed to match a K of a 2x1 mesh ftom 99 lines
 	
 #edofMat =  [ 2 1 4 3 8 7 6 5]	
 	
