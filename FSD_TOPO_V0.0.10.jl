@@ -4,6 +4,15 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : missing
+        el
+    end
+end
+
 # ╔═╡ fc7e00a0-9205-11eb-039c-23469b96de19
 begin
 	import Pkg
@@ -31,11 +40,13 @@ end
 
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
-### Version  v 0.0.9
+### Version  v 0.0.10
 - 0.0.8 Back to original formulation in 88 lines after attempt to reorder elements in v 0.0.6
 - 0.0.8 OK works in obtaining a meaningful internal loads field
 
 - 0.0.9 Clean up of 0.0.8OK   5 APR 21. It works with canonical problem
+
+- 0.0.10 Added animation and additional clean-up
 
 """
 
@@ -49,16 +60,18 @@ begin
 	
 # Set global parameters
 	
-sigma_all	= 6
+sigma_all	= 5
 max_all_t = 5
-full_penalty_iter = 10
-max_penalty = 5
+full_penalty_iter = 5
+max_penalty = 3
 thick_ini = 1.0		
 min_thick = 0.00001
-	
-scale = 1
+		
+scale = 2
 nelx = 60*scale ; nely = 20*scale  #mesh size
-	
+
+Niter = 25
+
 end;
 
 # ╔═╡ b23125f6-7118-4ce9-a10f-9c3d3061f8ce
@@ -100,8 +113,22 @@ end;
 
 # ╔═╡ 7ae886d4-990a-4b14-89d5-5708f805ef93
 md"""
-#### Call FSDTOPO
+#### Call FSDTOPO with Niter
 """
+
+# ╔═╡ 52b66b2c-c68e-41eb-aff6-46234e23debf
+(a, b) = 5 > 13 ? (3, 4) : (8,9)
+
+# ╔═╡ 5124345d-2b5f-41fd-b2b3-a2c7cbb832bb
+b
+
+# ╔═╡ 2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
+md"""
+N = $(@bind N Slider(1:25, show_value=true, default=1))
+"""
+
+# ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
+#heatmap(reverse(newt[N], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ 6bd11d90-93c1-11eb-1368-c9484c1302ee
 md""" ### FE SOLVER FUNCTIONS  """
@@ -134,15 +161,14 @@ begin
 
 function NODAL_DISPLACEMENTS(thick)
 
-KE = KE_CQUAD4()	
+KE = KE_CQUAD4() # Local element stiffness matrix
 		
 sK = reshape(KE[:]*thick[:]', 64*nelx*nely)
 		
 K = Symmetric(sparse(iK,jK,sK));
 		
 U[freedofs] = K[freedofs,freedofs]\F[freedofs]		
-		
-		
+				
 end # function
 	
 end
@@ -172,15 +198,13 @@ end
 begin
 
 function INTERNAL_LOADS()
-#######################	
-	
-S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component or function)
+		
 SUe = SU_CQUAD4() # Matrix that relates element stresses to nodal displacements
 		
-for y = 1:nely, x = 1:nelx		
+S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component or function)
+				
+@inbounds for y = 1:nely, x = 1:nelx		
 	# Node numbers, starting at top left corner and growing in columns going down as per in 99 lines of code		
-	
-	#n1 = (nely+1)*(x-1)+y;	n2 = (nely+1)* x +y	
 			
 	n2 = (nely+1)* x +y	; 	n1 = n2	- (nely+1)
 			
@@ -193,7 +217,7 @@ for y = 1:nely, x = 1:nelx
 	s1 = 0.5 * (sxx + syy + ((sxx - syy) ^ 2 + 4 * sxy ^ 2) ^ 0.5)
 	s2 = 0.5 * (sxx + syy - ((sxx - syy) ^ 2 + 4 * sxy ^ 2) ^ 0.5)
 	res = (s1 ^ 2 + s2 ^ 2 - 2 * 0.3 * s1 * s2) ^ 0.5		# elastic strain energy
-		
+
 	S[y, x] = res
 		
 end # for	
@@ -207,48 +231,89 @@ end
 begin
 
 function FSDTOPO(niter)	
-
+		
+		
 th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
 th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain		
 
 t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
-		
+
+t_res = []					
 		
 for iter in 1:niter
+			
 	NODAL_DISPLACEMENTS(t)
-	ESE = INTERNAL_LOADS()		
-				
+	ESE = INTERNAL_LOADS()				
+			
 	t .*= ESE / sigma_all # Obtain new thickness by FSD algorithm
 	
 	t = [min(nt, max_all_t) for nt in t] # Limit thickness to maximum
 
 			
+			
+	penalty = min(1 + iter / full_penalty_iter, max_penalty) # Calculate penalty at this iteration
+			
 	# Filter loop					
-"""
+
+"""			
 t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
 				.*( [1 2 1 ;
 				   2 4 2 ;
 				   1 2 1] ./16)
 		) for i in CartesianIndices(t)]						
-"""
+"""		
+
+if penalty < max_penalty*.75			
 			
-penalty = min(1 + iter / full_penalty_iter, max_penalty) # Calculate penalty at this iteration
+	for j = 1:nely, i in 1:nelx
+
+	(NN_t, NN_w) = (j > 1) ? (t[j-1, i], 2) : (0,0)
+	(SS_t, SS_w) = (j < nely) ? (t[j+1, i], 2) : (0,0)							
+
+	(WW_t, WW_w) = i > 1 ? (t[j, i-1], 2) : (0,0)
+	(EE_t, EE_w) = i < nelx ? (t[j, i+1], 2) : (0,0)					
+
+	(NW_t, NW_w) = ((j > 1) && (i > 1)) ? (t[j-1, i-1], 1) : (0,0)
+	(NE_t, NE_w) = ((j > 1) && (i < nelx)) ? (t[j-1, i+1], 1) : (0,0)				
+
+	(SW_t, SW_w) = ((j < nely) && (i > 1)) ? (t[j+1, i-1], 1) : (0,0)				
+	(SE_t, SE_w) = ((j < nely) && (i < nelx)) ? (t[j+1, i+1], 1) : (0,0)				
+
+	t[j,i] = (t[j,i]*4 + NN_t * NN_w + SS_t * SS_w + EE_t * EE_w + WW_t * WW_w + NE_t* NE_w + SE_t * SE_w + NW_t * NW_w + SW_t * SW_w)/(4 + NN_w+ SS_w+ EE_w+ WW_w+ NE_w+ SE_w+ NW_w+ SW_w)			
+
+	end # for j, i				
+end # if		
+
+
 		
 			
-t = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
+tq = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
+
+
+t = copy(tq)  # ???
+			
+push!(t_res, tq)			
+			
+end	# for	
 		
-end		
+return t_res # returns an array of the views of the canvas containing only the thickness domain for each iteration
 		
-return t # retuns a view of the canvas containing only the thickness domain
 end # end function
 	
 end
 
-# ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
- newt = FSDTOPO(24);
 
-# ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
-heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+# ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
+ newt = FSDTOPO(Niter);
+
+# ╔═╡ 7f47d8ef-98be-416d-852f-97fbaa287eec
+begin
+	
+	@gif for i in 1:Niter	
+		heatmap(reverse(newt[i], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+	end
+	
+end
 
 # ╔═╡ c58a7360-920c-11eb-2a15-bda7ed075812
 #heatmap(reverse(SU_CQUAD4(), dims=1), aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))
@@ -268,12 +333,16 @@ TableOfContents(aside=true)
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
-# ╠═d007f530-9255-11eb-2329-9502dc270b0d
+# ╟─d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
+# ╠═52b66b2c-c68e-41eb-aff6-46234e23debf
+# ╠═5124345d-2b5f-41fd-b2b3-a2c7cbb832bb
+# ╟─2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
+# ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
-# ╠═a8c96d92-aee1-4a91-baf0-2a585c2fa51f
-# ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
+# ╟─a8c96d92-aee1-4a91-baf0-2a585c2fa51f
+# ╟─2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c652e5c0-9207-11eb-3310-ddef16cdb1ac
