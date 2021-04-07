@@ -40,13 +40,13 @@ end
 
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
-### Version  v 0.0.10
+### Version  v 0.0.10 OK
 - 0.0.8 Back to original formulation in 88 lines after attempt to reorder elements in v 0.0.6
 - 0.0.8 OK works in obtaining a meaningful internal loads field
 
 - 0.0.9 Clean up of 0.0.8OK   5 APR 21. It works with canonical problem
 
-- 0.0.10 Added animation and additional clean-up
+- 0.0.10 Added animation and additional clean-up. GAUSS FILTER ADDED, IT WORKS FINE
 
 """
 
@@ -67,7 +67,7 @@ max_penalty = 3
 thick_ini = 1.0		
 min_thick = 0.00001
 		
-scale = 2
+scale = 3
 nelx = 60*scale ; nely = 20*scale  #mesh size
 
 Niter = 25
@@ -263,8 +263,10 @@ t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
 		) for i in CartesianIndices(t)]						
 """		
 
-if penalty < max_penalty*.75			
-			
+if penalty < max_penalty * 1			
+
+for gauss in 1:scale				
+				
 	for j = 1:nely, i in 1:nelx
 
 	(NN_t, NN_w) = (j > 1) ? (t[j-1, i], 2) : (0,0)
@@ -281,7 +283,11 @@ if penalty < max_penalty*.75
 
 	t[j,i] = (t[j,i]*4 + NN_t * NN_w + SS_t * SS_w + EE_t * EE_w + WW_t * WW_w + NE_t* NE_w + SE_t * SE_w + NW_t * NW_w + SW_t * SW_w)/(4 + NN_w+ SS_w+ EE_w+ WW_w+ NE_w+ SE_w+ NW_w+ SW_w)			
 
-	end # for j, i				
+	end # for j, i			
+					
+end # for gauss					
+					
+					
 end # if		
 
 
@@ -327,7 +333,7 @@ md"""
 TableOfContents(aside=true)
 
 # ╔═╡ Cell order:
-# ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
 # ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
@@ -342,7 +348,7 @@ TableOfContents(aside=true)
 # ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
 # ╟─a8c96d92-aee1-4a91-baf0-2a585c2fa51f
-# ╟─2c768930-9210-11eb-26f8-0dc24f22afaf
+# ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c652e5c0-9207-11eb-3310-ddef16cdb1ac
