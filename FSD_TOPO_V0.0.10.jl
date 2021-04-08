@@ -67,10 +67,10 @@ max_penalty = 5
 thick_ini = 1.0		
 min_thick = 0.00001
 		
-scale = 1
+scale = 3
 nelx = 60*scale ; nely = 20*scale  #mesh size
 
-Niter = 25
+Niter = 35
 
 end;
 
@@ -315,7 +315,7 @@ end
 begin
 	
 	@gif for i in 1:Niter	
-		heatmap(reverse(newt[i], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+		heatmap([ reverse(newt[i], dims=(1,2)) reverse(newt[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 	end
 	
 end
