@@ -60,14 +60,14 @@ begin
 	
 # Set global parameters
 	
-sigma_all	= 5
+sigma_all	= 3.5
 max_all_t = 5
 full_penalty_iter = 5
-max_penalty = 3
+max_penalty = 5
 thick_ini = 1.0		
 min_thick = 0.00001
 		
-scale = 3
+scale = 1
 nelx = 60*scale ; nely = 20*scale  #mesh size
 
 Niter = 25
@@ -87,13 +87,13 @@ begin
 nDoF = 2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
 	
 F = zeros(Float64, nDoF)	# Initialize external forces vector
-F[2] = -1.0	   # Applied external force
-		
+F[2] = -1.0	   # Set applied external force
+	
 U = zeros(Float64, nDoF)	# Initialize global displacements
 	
-fixeddofs = [(1:2:2*(nely+1)); nDoF ]
-alldofs   = collect(1:nDoF)
-freedofs  = setdiff(alldofs,fixeddofs)	
+fixeddofs = [(1:2:2*(nely+1)); nDoF ]  # Set boundary conditions
+	
+freedofs  = setdiff([1:nDoF...],fixeddofs)	
 
 nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx)
 	
@@ -197,14 +197,16 @@ end
 # ╔═╡ 2c768930-9210-11eb-26f8-0dc24f22afaf
 begin
 
-function INTERNAL_LOADS()
+function INTERNAL_LOADS(thick)
+		
+NODAL_DISPLACEMENTS(thick)	# First solve for global displacements
+		
 		
 SUe = SU_CQUAD4() # Matrix that relates element stresses to nodal displacements
 		
 S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component or function)
 				
-@inbounds for y = 1:nely, x = 1:nelx		
-	# Node numbers, starting at top left corner and growing in columns going down as per in 99 lines of code		
+@inbounds for y = 1:nely, x = 1:nelx # Node numbers, starting at top left corner and growing in columns going down as per in 99 lines of code		
 			
 	n2 = (nely+1)* x +y	; 	n1 = n2	- (nely+1)
 			
@@ -242,10 +244,7 @@ t_res = []
 		
 for iter in 1:niter
 			
-	NODAL_DISPLACEMENTS(t)
-	ESE = INTERNAL_LOADS()				
-			
-	t .*= ESE / sigma_all # Obtain new thickness by FSD algorithm
+	t .*= INTERNAL_LOADS(t)	 / sigma_all # Obtain new thickness by FSD algorithm
 	
 	t = [min(nt, max_all_t) for nt in t] # Limit thickness to maximum
 
@@ -265,9 +264,9 @@ t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
 
 if penalty < max_penalty * 1			
 
-for gauss in 1:scale				
+for gauss in 1:scale  # apply spatial filter as many times as scale in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)	
 				
-	for j = 1:nely, i in 1:nelx
+	for j = 1:nely, i in 1:nelx  # *** CHECK WHETHER INDICES ARE SWAPPED IN ALL CODE, EXPLAINING WHY DoFs 1 AND 2 HAD TO BE SWAPPED WHEN BUILDING K FROM Ke
 
 	(NN_t, NN_w) = (j > 1) ? (t[j-1, i], 2) : (0,0)
 	(SS_t, SS_w) = (j < nely) ? (t[j+1, i], 2) : (0,0)							
@@ -296,7 +295,7 @@ end # if
 tq = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
 
 
-t = copy(tq)  # ???
+t = copy(tq)  # ??? WHY IS THIS NECESSARY? OTHERWISE HEATMAP DISPLAYS A THICKNESS MAP WITH A MAXIMUM THICKNESS LARGER THAN THE SPECIFIED BOUND
 			
 push!(t_res, tq)			
 			
@@ -339,7 +338,7 @@ TableOfContents(aside=true)
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
-# ╟─d007f530-9255-11eb-2329-9502dc270b0d
+# ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
 # ╠═52b66b2c-c68e-41eb-aff6-46234e23debf
 # ╠═5124345d-2b5f-41fd-b2b3-a2c7cbb832bb
@@ -347,7 +346,7 @@ TableOfContents(aside=true)
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
 # ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
-# ╟─a8c96d92-aee1-4a91-baf0-2a585c2fa51f
+# ╠═a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 # ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
