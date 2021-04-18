@@ -69,18 +69,21 @@ end
 
 # ╔═╡ c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
 begin
-	natoms_c = 20
-	natoms_r = 6
+	natoms_c = 70
+	natoms_r = 9
 	Δa = 1 #  interatomic distance on same axis
-	Δt = .01
+	Δt = .001
 	
-	Niter_euler = 86000
+	Default_Atom_Intensity = 800.0
 	
-	m = 100
+	Niter_euler = 12001
+	
+	m = 10
 	mu = .11
 	natoms = natoms_c * natoms_r
 
-		apx = OffsetArray(zeros(natoms_r+2, natoms_c+2), 0:natoms_r+1,0:natoms_c+1)
+		apx = OffsetArray(zeros(natoms_r+2, natoms_c+2, Niter_euler+1 ), 0:natoms_r+1,0:natoms_c+1, 0:Niter_euler)
+	
 		apy = similar(apx)
 	
 		avx = similar(apx)
@@ -102,8 +105,8 @@ function draw_scatter()
 
 #scatter(apx[1:natoms_r, 1:natoms_c][:], apy[1:natoms_r, 1:natoms_c][:], m = (:heat, 0.8, Plots.stroke(1, :green)), ms = 9 .* aI.+ 0, lab = false)
 
-	ys = apy[1:natoms_r, 1:natoms_c][:]
-	xs = apx[1:natoms_r, 1:natoms_c][:]
+		ys = apy[1:natoms_r, 1:natoms_c, end-1][:]
+		xs = apx[1:natoms_r, 1:natoms_c, end-1][:]
 	
 plot(xs, ys, color = [:black :orange], line = (1), marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1   )		
 		
@@ -113,21 +116,29 @@ end
 # ╔═╡ 6cf8315f-8fd5-4277-854e-d5aa1e9adbfb
 function creategrid()
 
+for t = 0:1
+	
 for i = 0:natoms_r+1, j = 0:natoms_c+1  # create grid
 	
-	apx[i,j] = j * Δa
-	apy[i,j] = i * Δa
+	apx[i,j, t] = j * Δa
+	apy[i,j, t] = i * Δa
 
-	avx[i,j] = 0.0
-	avy[i,j] = 0.0		
+	avx[i,j, t] = 0.0
+	avy[i,j, t] = 0.0		
 		
-	aFx[i,j] = 0.0
-	aFy[i,j] = 0.0
+	aFx[i,j, t] = 0.0
+	aFy[i,j, t] = 0.0
+			
+	aE[i,j, t] = 0.0		# Reset atom energy level	
+					
+end #for i,j
 		
-	aI[1:natoms_r, 1:natoms_c] .= 500.0
+end # next time		
+
 	
-end #for
-
+aI[1:natoms_r, 1:natoms_c, 0:Niter_euler] .= Default_Atom_Intensity		
+	
+	
 draw_scatter()		
 	
 end
@@ -135,26 +146,17 @@ end
 # ╔═╡ b07a27ea-b155-42b3-a1e6-0a31ef2d9028
 creategrid();
 
-# ╔═╡ 8f2bc925-207e-4e8a-8d2e-31cd3fd87ebe
-size(apx[1:natoms_r, 1:natoms_c][:])
-
 # ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 begin
 	#function apply_forces()
 	creategrid()
 	
-	
-	x_res = [] ; y_res = []; ; E_res = []
-	
-	
-	for iter in 1:Niter_euler
+	for t in 1:Niter_euler-1
 	
 	for i = 1:natoms_r, j = 1:natoms_c  
 		
-		aFy[i,j] = -m * 9.8
-		aFx[i,j] = 0
-			
-		aE[i,j] = 0	# Reset atom energy level
+		aFy[i,j, t] = -m * 9.8
+		aFx[i,j, t] = 0
 		
 		indices_hv =   [(-1,0)  (0,-1) (0,1)  (1,0)]
 	    indices_diag = [(-1,-1) (-1,1) (1,-1) (1,1)]		
@@ -167,15 +169,12 @@ begin
 			
 			rest_length = abs(ind[1]) + abs(ind[2]) == 1 ? Δa : Δa * √2	
 				
-			Klink = aI[i,j] * aI[i+ind[1],j+ind[2]] / rest_length
+			Klink = aI[i,j, t] * aI[i+ind[1],j+ind[2], t] / rest_length
 
 			rest_length = ind[1] * ind[2] == 0 ? Δa : Δa * √2
 
-		#println(i, " ", j, " ", ind[1]," ", ind[2], " ", rest_length)			
-
-
-			Δx = (apx[i,j] - apx[i+ind[1],j+ind[2]]) 
-			Δy = (apy[i,j] - apy[i+ind[1],j+ind[2]]) 
+			Δx = (apx[i,j, t] - apx[i+ind[1],j+ind[2], t]) 
+			Δy = (apy[i,j, t] - apy[i+ind[1],j+ind[2], t]) 
 				
 			distance = √(  Δx^2 + Δy^2 )
 				
@@ -184,10 +183,10 @@ begin
 			force = extension * Klink
 				
 
-			aFx[i,j] += -1* force * Δx/distance
-			aFy[i,j] += -1* force * Δy/distance		
+			aFx[i,j, t] += -1* force * Δx/distance
+			aFy[i,j, t] += -1* force * Δy/distance		
 				
-			aE[i,j] += sum(abs.([ aFx[i,j], aFx[i,j] ]))
+			aE[i,j, t] += sum(abs.([ aFx[i,j, t], aFx[i,j, t] ]))
 				
 			end # for indices
 		
@@ -196,53 +195,48 @@ begin
 	
 # F = m * Δv / Δt   ->   Δv = F/m * Δt
 # v = Δx / Δt    ->   Δx = v * Δt  ->    Δx = F/m * Δt ^2
-				
-
 		
-"""for i = 1:natoms_r, j = 1:natoms_c  				
-		avx[i,j] += aFx[i,j] * Δt  /m 
-		avy[i,j] += aFy[i,j] * Δt  /m 				
-end		
-			
+		
+ 
+# Strönberg
 for i = 1:natoms_r, j = 1:natoms_c  					
-		apx[i,j] += avx[i,j] * Δt 
-		apy[i,j] += avy[i,j] * Δt 	
-end
-		
+		apx[i,j, t+1] = 2*apx[i,j, t] - apx[i,j, t-1] + aFx[i,j, t] * Δt^2 /m 
+		apy[i,j, t+1] = 2*apy[i,j, t] - apy[i,j, t-1] + aFy[i,j, t] * Δt^2 /m	
+end		
 
+
+"""		
+# ñapa				
+for i = 1:natoms_r, j = 1:natoms_c  					
+		apx[i,j, t+1] = apx[i,j, t]  + aFx[i,j, t] * Δt^2 /m 
+		apy[i,j, t+1] = apy[i,j, t]  + aFy[i,j, t] * Δt^2 /m	
+end		
 """
-		
-for i = 1:natoms_r, j = 1:natoms_c  					
-		apx[i,j] += aFx[i,j] * Δt^2 /m 
-		apy[i,j] += aFy[i,j] * Δt^2 /m
-end		
-
+				
 		
 		
-apx[1,1] = 1
-apy[1,1] = 1
+apx[1,1, t+1] = 1
+apy[1,1, t+1] = 1
 		
-#apy[1,40] = 1		
+apy[1,natoms_c, t+1] = 1		
 		
-
 		
-push!( x_res, apx[1:natoms_r, 1:natoms_c][:]	)
-push!( y_res, apy[1:natoms_r, 1:natoms_c][:]	)
-push!( E_res, aE[1:natoms_r, 1:natoms_c][:]		)
-		
-	end	# next iter    -- function
+end	# next time    -- function
 	
-	draw_scatter()	
+draw_scatter()	
 end
 
 # ╔═╡ 30d5a924-7bcd-4eee-91fe-7b10004a4139
 begin
 	
-	@gif for i in 1:(Int64(floor(Niter_euler/100))):Niter_euler
+	@gif for t in 1:(Int64(floor(Niter_euler/100))):Niter_euler-1
 
-
+		ys = apy[1:natoms_r, 1:natoms_c, t][:]
+		xs = apx[1:natoms_r, 1:natoms_c, t][:]
+		Es = aE[1:natoms_r, 1:natoms_c, t][:]
+		
 	
-plot(x_res[i], y_res[i], color = [:black :orange], line = (1), marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, zcolor = E_res[i]   )		
+plot(xs, ys, color = [:black :orange], line = (1), marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, zcolor = Es   )		
 	
 	end
 	
@@ -262,33 +256,6 @@ apy[:]
 
 # ╔═╡ c0fd4cf5-99dd-4cb6-87e6-62fc5e3a553e
 aFy
-
-# ╔═╡ 2836f6d5-befa-48a2-b77d-6164a08e6bdd
-
-
-# ╔═╡ 3e873157-6a8d-4711-b918-881e0665f0cb
-
-
-# ╔═╡ b73ce0e4-00bb-4f59-9fdf-a7cc9a6508aa
-
-
-# ╔═╡ 6df6760b-4684-4b12-9367-ceb5324041db
-
-
-# ╔═╡ f14fdac3-0913-4227-9e8c-292457c7bc7c
-
-
-# ╔═╡ 63b64ef1-3f00-4a8a-b35d-ef1770a959b7
-
-
-# ╔═╡ 6ec408a0-dede-4661-bdf3-2bf5f6acc34a
-
-
-# ╔═╡ 3e41f902-3197-4584-ae7e-1443413a4fb3
-
-
-# ╔═╡ 33dd2e7a-8bd4-4b8c-bc49-566a41a11380
-
 
 # ╔═╡ b7c8d956-f723-4a8d-9195-88ffb67f5774
 
@@ -594,7 +561,6 @@ TableOfContents(aside=true)
 # ╠═6cf8315f-8fd5-4277-854e-d5aa1e9adbfb
 # ╠═b07a27ea-b155-42b3-a1e6-0a31ef2d9028
 # ╠═61f3e46a-2f2f-4028-b59a-4fd939b13eea
-# ╠═8f2bc925-207e-4e8a-8d2e-31cd3fd87ebe
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 # ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╠═e95fe0fb-c52c-4636-ad2c-fa6d3bbef926
@@ -602,15 +568,6 @@ TableOfContents(aside=true)
 # ╠═0b4e83a6-d8e2-48ea-a9bd-1f15c7b3580e
 # ╠═1c090881-4de5-4a5b-b4fc-4f3abf69e1d6
 # ╠═c0fd4cf5-99dd-4cb6-87e6-62fc5e3a553e
-# ╠═2836f6d5-befa-48a2-b77d-6164a08e6bdd
-# ╠═3e873157-6a8d-4711-b918-881e0665f0cb
-# ╠═b73ce0e4-00bb-4f59-9fdf-a7cc9a6508aa
-# ╠═6df6760b-4684-4b12-9367-ceb5324041db
-# ╠═f14fdac3-0913-4227-9e8c-292457c7bc7c
-# ╠═63b64ef1-3f00-4a8a-b35d-ef1770a959b7
-# ╠═6ec408a0-dede-4661-bdf3-2bf5f6acc34a
-# ╠═3e41f902-3197-4584-ae7e-1443413a4fb3
-# ╠═33dd2e7a-8bd4-4b8c-bc49-566a41a11380
 # ╠═b7c8d956-f723-4a8d-9195-88ffb67f5774
 # ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
