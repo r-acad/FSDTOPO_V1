@@ -69,14 +69,14 @@ end
 
 # ╔═╡ c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
 begin
-	natoms_c = 70
+	natoms_c = 40
 	natoms_r = 10
 	Δa = 1 #  interatomic distance on same axis
 	Δt = .001
 	
 	Default_Atom_Intensity = 800.0
 	
-	Niter_euler = 12001
+	Niter_euler = 6000
 	
 	m = 10
 	mu = .11
@@ -107,8 +107,9 @@ function draw_scatter()
 
 		ys = apy[1:natoms_r, 1:natoms_c, end-1][:]
 		xs = apx[1:natoms_r, 1:natoms_c, end-1][:]
+		Es = aE[1:natoms_r, 1:natoms_c, end-1][:]
 	
-plot(xs, ys, color = [:black :orange], line = (1), marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1   )		
+plot(xs, ys, color = [:black :orange], line = (1), marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, zcolor = Es  )		
 		
 end
 end	
