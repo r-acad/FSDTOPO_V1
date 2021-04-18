@@ -237,7 +237,7 @@ heatmap(reverse(newt, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical 
 
 # ╔═╡ Cell order:
 # ╠═13b32a20-9206-11eb-3af7-0feea278594c
-# ╟─fc7e00a0-9205-11eb-039c-23469b96de19
+# ╠═fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═ca1a1917-9414-4052-a105-c4655b39f902
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
