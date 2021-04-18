@@ -70,7 +70,7 @@ end
 # ╔═╡ c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
 begin
 	natoms_c = 70
-	natoms_r = 9
+	natoms_r = 10
 	Δa = 1 #  interatomic distance on same axis
 	Δt = .001
 	
