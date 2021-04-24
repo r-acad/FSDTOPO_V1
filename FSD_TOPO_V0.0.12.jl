@@ -50,8 +50,8 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 
 # ╔═╡ c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
 begin
-natoms_c = 40
-natoms_r = 10
+natoms_c = 20
+natoms_r = 6
 
 ndims = 2  # Number of dimensions of the lattice
 	
@@ -60,22 +60,26 @@ ndims = 2  # Number of dimensions of the lattice
 		
 Default_Atom_Intensity = 400.0
 		
-Niter_euler = 4000
+Niter_ODE = 800
 		
-m = 10
+initial_mass = 10.
 mu = .11
 natoms = natoms_c * natoms_r
 	
-a_p = OffsetArray(zeros(ndims,   natoms_r+2,   natoms_c+2,   Niter_euler+1),
-			 1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_euler) # Array of positions
+a_x = OffsetArray(zeros(ndims,   natoms_r+2,   natoms_c+2,   Niter_ODE+1),
+			 1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_ODE) # Array of positions
 	
-a_v = similar(a_p)  # Array of velocities
+a_v = similar(a_x)  # Array of velocities of all atoms at time t
 
-a_F = similar(a_p) # Array of forces	
+a_F = similar(a_x) # Array of sums of forces acting on each atom at time t
 	
-a_I = similar(a_p[1,:,:,:]) # Array of atom "intensities" (makes Klink as product of intensities divided by rest-length)
+a_I = similar(a_x[1,:,:,:]) # Array of atom "intensities" (makes Klink as product of intensities divided by rest-length) at time t
 	
-a_E = similar(a_p[1,:,:,:]) # Array of atom "energy level" (sum abs(forces))
+a_E = similar(a_x[1,:,:,:]) # Array of atom "energy level" (sum abs(forces)) at time t
+	
+a_m = similar(a_x[1,:,:,:]) # Array of atom masses at time t
+		
+	
 			
 end;
 
@@ -83,8 +87,8 @@ end;
 begin
 function draw_scatter()	
 	
-plot(a_p[1, 1:natoms_r, 1:natoms_c, end-1][:], 
-	 a_p[2, 1:natoms_r, 1:natoms_c, end-1][:], 
+plot(a_x[1, 1:natoms_r, 1:natoms_c, end-1][:], 
+	 a_x[2, 1:natoms_r, 1:natoms_c, end-1][:], 
 	 color = [:black :orange], line = (1), 
 	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
 	zcolor = a_E[1:natoms_r, 1:natoms_c, end-1][:]  )		
@@ -99,18 +103,107 @@ for t = 0:1  # Initialize matrices at time 0 and 1 to set boundary conditions
 for dim = 1:ndims  #Sweep through dimensions		
 for i = 0:natoms_r+1, j = 0:natoms_c+1  # create grid
 	
-	a_p[dim, i,j, t] = dim == 1 ? j * Δa : i * Δa
+	a_x[dim, i,j, t] = dim == 1 ? j * Δa : i * Δa
 	a_v[dim,i,j, t] = 0.0
 	a_F[dim,i,j, t] = 0.0
 	a_E[i,j, t] = 0.0  # Reset atom energy level	
+	#a_m[i,j, t] = initial_mass  # Reset atom energy level					
 					
 end #for i,j
 end # for dim			
 end # next time		
 
-a_I[1:natoms_r, 1:natoms_c, 0:Niter_euler] .= Default_Atom_Intensity			
+	a_m[:,:, :] .= initial_mass  # Reset atom energy level	
+	
+	
+a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity			
 	
 draw_scatter()		
+	
+end
+
+# ╔═╡ fc998580-e00a-4e15-be70-00582284f491
+
+"""
+function compute_velocities(t)
+
+for dim = 1:ndims, i = 1:natoms_r, j = 1:natoms_c  	
+
+a_v[dim, i,j, t] += 
+		
+end	# j,i, dim	
+	
+end
+
+"""
+
+# ╔═╡ e084941c-447a-41bd-bf06-59dea45af028
+"""
+Compute Forces acting on all atoms of the lattice at time t by solving elastic and intertial equations based on the position of the atoms and the external forces at time t
+"""
+function compute_forces(t)
+
+offsets_hv =   [(-1, 0) (0,-1) (0,1)  (1,0)] # Offsets of adjacent atoms in same axes
+offsets_diag = [(-1,-1) (-1,1) (1,-1) (1,1)] # Offsets of adjacent atoms in diags
+offsets = [offsets_hv offsets_diag] # Array with all indice offsets of neighbours	
+	
+for i = 1:natoms_r, j = 1:natoms_c # Traverse complete lattice
+
+# Apply gravitational forces ("external", body force)
+a_F[2,i,j, t] = - a_m[i,j, t] * 9.8  # Note weights are constant now!!!
+		
+		
+	offset_count = 0	
+	for offset in offsets # For the current atom, get the elastic forces coming from neighbours
+	offset_count += 1
+			
+	# calculate local stiffness: Rest length of link between atoms (it depends on whether the link is in the same axis or in a diagonal		
+	#rest_length = offset[1] * offset[2] == 0 ? Δa : Δa * √2
+			
+	rest_length =  if offset_count < 5 Δa else Δa * √2 end
+			
+	# Stiffness of the link: product of atom intensities normalized by rest length
+	Klink = a_I[i,j, t] * a_I[i+offset[1],j+offset[2], t] / rest_length
+
+	# Relative position vector of adjacent atom at ind wrt current [i,j]				
+	rel_pos_vec = [(a_x[dim, i,j, t] - a_x[dim, i+offset[1],j+offset[2], t]) 
+					for dim in 1:ndims ]
+
+	distance = norm(rel_pos_vec)  # Scalar distance with neighbouring atom at ind
+	extension = distance - rest_length # Link true extension
+
+	force = extension * Klink # Elastic force (scalar) between i,j atom and atom at ind
+
+	# Build force vector acting on atom i,j between itself and atom at i,j+offset at time t
+	for dim = 1:ndims  # go through x, y... components of the force vector
+	 a_F[dim, i,j, t] += -1 * force * rel_pos_vec[dim]/distance	# Elastic force
+	 a_F[dim, i,j, t] += -mu * a_v[dim, i,j, t]	# Viscous force		
+				
+	end # next dim					
+
+	# Update "energy" status at atom i,j at time t
+	a_E[i,j, t] += sum([ a_F[dim, i,j, t]^2 for dim in 1:ndims ]    )
+			
+	# Update mass of atom i,j at time t
+	#a_m[i,j, t] = a_I[i,j, t] / 40.				
+					
+
+		end # for offset
+end # for i, j	
+	
+end
+
+# ╔═╡ 30d5a924-7bcd-4eee-91fe-7b10004a4139
+function draw_animation()
+	
+	@gif for t in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
+
+plot(a_x[1, 1:natoms_r, 1:natoms_c, t][:], 
+	 a_x[2, 1:natoms_r, 1:natoms_c, t][:], 
+	 color = [:black :orange], line = (1), 
+	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
+	zcolor = a_E[1:natoms_r, 1:natoms_c, t][:]  )					
+	end # for time step
 	
 end
 
@@ -119,96 +212,31 @@ begin
 
 creategrid()
 	
-for t in 1:Niter_euler-1  # Time step	
-						
-# Compute Forces at time t by solving elastic and intertial equations based on the state at time t
-for i = 1:natoms_r, j = 1:natoms_c # Sweep through lattice
+for time in 1:Niter_ODE-1  # Time step	
 
-# Gravity loads			
-a_F[2,i,j, t] = -m * 9.8  # Note weights are constant now!!!
-		
-indices_hv =   [(-1,0)  (0,-1) (0,1)  (1,0)] # Indices of adjacent atoms in same axes
-indices_diag = [(-1,-1) (-1,1) (1,-1) (1,1)] # Indices of adjacent atoms in diags
-			
-indices = [indices_hv indices_diag]
-			
-for ind in indices # For the current atom, get the elastic forces coming from neighbours
-				
-# calculate local stiffness: Rest length of link between atoms (it depends on whether the link is in the same axis or in a diagonal		
-rest_length = ind[1] * ind[2] == 0 ? Δa : Δa * √2
-								
-# Stiffness of the link: product of atom intensities normalized by rest length
-Klink = a_I[i,j, t] * a_I[i+ind[1],j+ind[2], t] / rest_length
-
-# Relative position vector of adjacent atom at ind wrt current [i,j]				
-rel_pos_vec = [(a_p[dim, i,j, t] - a_p[dim, i+ind[1],j+ind[2], t]) 
-				for dim in 1:ndims ]
-				
-distance = norm(rel_pos_vec)  # Scalar distance with neighbouring atom at ind
-extension = distance - rest_length
-				
-force = extension * Klink
-
-for dim = 1:ndims
- a_F[dim, i,j, t] += -1* force * rel_pos_vec[dim]/distance		
-end # next dim					
-				
-a_E[i,j, t] += sum([ a_F[dim, i,j, t]^2 for dim in 1:ndims ]    )
-				
-end # for indices
-end # for i, j
-		
+compute_forces(time)		
 	
 # F = m * Δv / Δt   ->   Δv = F/m * Δt
 # v = Δx / Δt    ->   Δx = v * Δt  ->    Δx = F/m * Δt ^2
+
 # Strönberg
-		
-for i = 1:natoms_r, j = 1:natoms_c  					
+for dim = 1:ndims, i = 1:natoms_r, j = 1:natoms_c  					
 			
-for dim = 1:ndims	
- a_p[dim, i,j, t+1] = 2*a_p[dim, i,j, t] - a_p[dim, i,j, t-1] + a_F[dim, i,j, t] * Δt^2 /m 			
-end # next dim				
+a_x[dim, i,j, time+1] = 2*a_x[dim, i,j, time] - a_x[dim, i,j, time-1] + a_F[dim, i,j, time] * Δt^2 / initial_mass #a_m[i,j, time] 			
 
-end		
+end	# j,i, dim
 
-""
-				
 		
 # Boundary conditions		
-a_p[1,1,1, t+1] = 1
-a_p[2,1,1, t+1] = 1
+a_x[1,1,1, time+1] = 1
+a_x[2,1,1, time+1] = 1
 		
 #a_p[2,1,natoms_c, t+1] = 1		
 		
 		
 end	# next time    -- function
 	
-draw_scatter()	
-end
-
-# ╔═╡ 30d5a924-7bcd-4eee-91fe-7b10004a4139
-begin
-	
-	@gif for t in 1:(Int64(floor(Niter_euler/100))):Niter_euler-1
-
-		"""
-		ys = apy[1:natoms_r, 1:natoms_c, t][:]
-		xs = apx[1:natoms_r, 1:natoms_c, t][:]
-		Es = aE[1:natoms_r, 1:natoms_c, t][:]
-		
-	
-plot(xs, ys, color = [:black :orange], line = (1), marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, zcolor = Es   )		
-
-		"""
-plot(a_p[1, 1:natoms_r, 1:natoms_c, t][:], 
-	 a_p[2, 1:natoms_r, 1:natoms_c, t][:], 
-	 color = [:black :orange], line = (1), 
-	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
-	zcolor = a_E[1:natoms_r, 1:natoms_c, t][:]  )			
-		
-		
-		
-	end
+	draw_animation()
 	
 end
 
@@ -506,16 +534,18 @@ md"""
 """
 
 # ╔═╡ 13b32a20-9206-11eb-3af7-0feea278594c
-TableOfContents(aside=true)
+#TableOfContents(aside=true)
 
 # ╔═╡ Cell order:
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
 # ╠═c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
-# ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
-# ╠═a755dbab-6ac9-4a9e-a397-c47efce4d2f7
+# ╟─cea5e286-4bc1-457f-b300-fdff62047cc4
+# ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
-# ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╟─fc998580-e00a-4e15-be70-00582284f491
+# ╠═e084941c-447a-41bd-bf06-59dea45af028
+# ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╠═b7c8d956-f723-4a8d-9195-88ffb67f5774
 # ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
