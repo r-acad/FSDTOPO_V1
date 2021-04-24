@@ -48,40 +48,58 @@ md"""
 $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 """
 
-# ╔═╡ c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
+# ╔═╡ 402abadb-d500-4801-8005-11d036f8f351
 begin
-natoms_c = 20
-natoms_r = 6
-
-ndims = 2  # Number of dimensions of the lattice
+	natoms_c = 20
+	natoms_r = 7
 	
-Δa = 1 #  interatomic distance on same axis
-Δt = .001
+	ndims = 2 # Number of dimensions of the lattice
 		
-Default_Atom_Intensity = 400.0
-		
-Niter_ODE = 800
-		
-initial_mass = 10.
-mu = .11
+	Δa = 1 #  interatomic distance on same axis
+	Δt = .001
+			
+	Default_Atom_Intensity = 400.
+			
+	Niter_ODE = 2800
+			
+	initial_mass = 10.
+	mu = .11
+	
+	
 natoms = natoms_c * natoms_r
 	
 a_x = OffsetArray(zeros(ndims,   natoms_r+2,   natoms_c+2,   Niter_ODE+1),
-			 1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_ODE) # Array of positions
+1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_ODE) # Array of positions at all times
 	
-a_v = similar(a_x)  # Array of velocities of all atoms at time t
-
-a_F = similar(a_x) # Array of sums of forces acting on each atom at time t
+a_v = copy(a_x)  # Array of velocities of all atoms at all times
+a_F = copy(a_x) # Array of sum of forces acting on each atom at all times
+a_I = copy(a_x[1,:,:,:]) # Array of atom "intensities" (makes Klink as product of intensities divided by rest-length) at time t
+a_E = copy(a_I) # Array of atom "energy level" (sum abs(forces)) at time t
+a_m = copy(a_I) # Array of atom masses at time t
 	
-a_I = similar(a_x[1,:,:,:]) # Array of atom "intensities" (makes Klink as product of intensities divided by rest-length) at time t
+offsets_hv =   [(-1, 0) (0,-1) (0,1)  (1,0)] # Offsets of adjacent atoms in same axes
+offsets_diag = [(-1,-1) (-1,1) (1,-1) (1,1)] # Offsets of adjacent atoms in diags
+offsets = [offsets_hv offsets_diag] # Array with all indice offsets of neighbours		
 	
-a_E = similar(a_x[1,:,:,:]) # Array of atom "energy level" (sum abs(forces)) at time t
-	
-a_m = similar(a_x[1,:,:,:]) # Array of atom masses at time t
-		
-	
-			
 end;
+
+# ╔═╡ cea5e286-4bc1-457f-b300-fdff62047cc4
+function initialize_grid()
+	
+for dim = 1:ndims , i = 0:natoms_r+1, j = 0:natoms_c+1  # create grid in i,j and sweep through dimensions
+	a_x[dim, i,j, :] .= dim == 1 ? j * Δa : i * Δa	
+end #for i,j
+			
+a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity	# set only in the grid, let intensities of canvas margins = 0
+	
+a_m[:,:, :] .= initial_mass   # Reset initial atom masses
+a_E[:,:, :] .= 0.0   # Reset initial atom energy
+a_v[:,:,:,:] .= 0.0  # Reset initial atom velocities
+a_F[:,:,:,:] .= 0.0  # Reset initial atom forces
+	
+#draw_scatter()		
+	
+end
 
 # ╔═╡ a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 begin
@@ -96,34 +114,7 @@ plot(a_x[1, 1:natoms_r, 1:natoms_c, end-1][:],
 end
 end	
 
-# ╔═╡ cea5e286-4bc1-457f-b300-fdff62047cc4
-function creategrid()
-
-for t = 0:1  # Initialize matrices at time 0 and 1 to set boundary conditions
-for dim = 1:ndims  #Sweep through dimensions		
-for i = 0:natoms_r+1, j = 0:natoms_c+1  # create grid
-	
-	a_x[dim, i,j, t] = dim == 1 ? j * Δa : i * Δa
-	a_v[dim,i,j, t] = 0.0
-	a_F[dim,i,j, t] = 0.0
-	a_E[i,j, t] = 0.0  # Reset atom energy level	
-	#a_m[i,j, t] = initial_mass  # Reset atom energy level					
-					
-end #for i,j
-end # for dim			
-end # next time		
-
-	a_m[:,:, :] .= initial_mass  # Reset atom energy level	
-	
-	
-a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity			
-	
-draw_scatter()		
-	
-end
-
 # ╔═╡ fc998580-e00a-4e15-be70-00582284f491
-
 """
 function compute_velocities(t)
 
@@ -134,31 +125,24 @@ a_v[dim, i,j, t] +=
 end	# j,i, dim	
 	
 end
-
 """
 
 # ╔═╡ e084941c-447a-41bd-bf06-59dea45af028
 """
-Compute Forces acting on all atoms of the lattice at time t by solving elastic and intertial equations based on the position of the atoms and the external forces at time t
+Compute Forces acting on all atoms of the lattice at time t by solving elastic and inertial equations based on the position of the atoms and the external forces at time t
 """
 function compute_forces(t)
-
-offsets_hv =   [(-1, 0) (0,-1) (0,1)  (1,0)] # Offsets of adjacent atoms in same axes
-offsets_diag = [(-1,-1) (-1,1) (1,-1) (1,1)] # Offsets of adjacent atoms in diags
-offsets = [offsets_hv offsets_diag] # Array with all indice offsets of neighbours	
 	
 for i = 1:natoms_r, j = 1:natoms_c # Traverse complete lattice
 
 # Apply gravitational forces ("external", body force)
 a_F[2,i,j, t] = - a_m[i,j, t] * 9.8  # Note weights are constant now!!!
 		
-		
 	offset_count = 0	
 	for offset in offsets # For the current atom, get the elastic forces coming from neighbours
 	offset_count += 1
 			
 	# calculate local stiffness: Rest length of link between atoms (it depends on whether the link is in the same axis or in a diagonal		
-	#rest_length = offset[1] * offset[2] == 0 ? Δa : Δa * √2
 			
 	rest_length =  if offset_count < 5 Δa else Δa * √2 end
 			
@@ -182,7 +166,7 @@ a_F[2,i,j, t] = - a_m[i,j, t] * 9.8  # Note weights are constant now!!!
 	end # next dim					
 
 	# Update "energy" status at atom i,j at time t
-	a_E[i,j, t] += sum([ a_F[dim, i,j, t]^2 for dim in 1:ndims ]    )
+	a_E[i,j, t] += sum([ a_F[dim, i,j, t]^2 for dim in 1:ndims ])^.5
 			
 	# Update mass of atom i,j at time t
 	#a_m[i,j, t] = a_I[i,j, t] / 40.				
@@ -207,10 +191,22 @@ plot(a_x[1, 1:natoms_r, 1:natoms_c, t][:],
 	
 end
 
+# ╔═╡ 6960420d-bc50-4be3-9a26-2f43f14b903d
+function draw_animated_heatmap()
+	
+	@gif for t in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
+		
+	heatmap( log.(a_E[1:natoms_r, 1:natoms_c, t])
+			, aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+	
+	end
+	
+end;
+
 # ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 begin
 
-creategrid()
+initialize_grid()
 	
 for time in 1:Niter_ODE-1  # Time step	
 
@@ -222,21 +218,21 @@ compute_forces(time)
 # Strönberg
 for dim = 1:ndims, i = 1:natoms_r, j = 1:natoms_c  					
 			
-a_x[dim, i,j, time+1] = 2*a_x[dim, i,j, time] - a_x[dim, i,j, time-1] + a_F[dim, i,j, time] * Δt^2 / initial_mass #a_m[i,j, time] 			
+a_x[dim, i,j, time+1] = 2*a_x[dim, i,j, time] - a_x[dim, i,j, time-1] + a_F[dim, i,j, time] * Δt^2 / a_m[i,j, time] 			
 
 end	# j,i, dim
 
-		
 # Boundary conditions		
 a_x[1,1,1, time+1] = 1
 a_x[2,1,1, time+1] = 1
-		
-#a_p[2,1,natoms_c, t+1] = 1		
-		
-		
+
+a_x[1,1,natoms_c, time+1] = natoms_c			
+a_x[2,1,natoms_c, time+1] = 1		
+				
 end	# next time    -- function
 	
-	draw_animation()
+#draw_animation()
+draw_animated_heatmap()
 	
 end
 
@@ -539,13 +535,14 @@ md"""
 # ╔═╡ Cell order:
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
-# ╠═c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
-# ╟─cea5e286-4bc1-457f-b300-fdff62047cc4
+# ╠═402abadb-d500-4801-8005-11d036f8f351
+# ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 # ╟─fc998580-e00a-4e15-be70-00582284f491
 # ╠═e084941c-447a-41bd-bf06-59dea45af028
-# ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╠═6960420d-bc50-4be3-9a26-2f43f14b903d
 # ╠═b7c8d956-f723-4a8d-9195-88ffb67f5774
 # ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
@@ -568,6 +565,6 @@ md"""
 # ╠═c652e5c0-9207-11eb-3310-ddef16cdb1ac
 # ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
 # ╠═c58a7360-920c-11eb-2a15-bda7ed075812
-# ╠═c72f9b42-94c7-4377-85cd-5afebbe1d271
-# ╠═fc7e00a0-9205-11eb-039c-23469b96de19
-# ╠═13b32a20-9206-11eb-3af7-0feea278594c
+# ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
+# ╟─fc7e00a0-9205-11eb-039c-23469b96de19
+# ╟─13b32a20-9206-11eb-3af7-0feea278594c
