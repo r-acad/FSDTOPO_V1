@@ -43,30 +43,6 @@ end
 # ╔═╡ 454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 md"### Soft body section"
 
-# ╔═╡ 58e8e7c4-7122-47e2-8529-1b761ebb8177
-mutable struct Atom
-	x::SVector{3,Int64}
-	v::SVector{3,Int64}
-	F::SVector{3,Int64}
-	μ::Float64
-	m::Float64
-	I::Float64
-end
-
-# ╔═╡ bb0c8c15-efcc-44da-ad4a-4ca1c7ef9583
-function makeAtom()
-	a = Atom([1. 0 0], [1. 0 0], [1. 0 0], 0.0, 0,0)
-	
-	a.x = [1. 0 0]
-	a.v = [0 2. 0]
-	a.F = [0 3. 0]
-	a.μ = .3
-	a.m = 10.0
-	a.I = 1.2
-	
-	return a
-end
-
 # ╔═╡ 6104ccf7-dfce-4b0b-a869-aa2b71deccde
 md"""
 $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
@@ -74,157 +50,135 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 
 # ╔═╡ c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
 begin
-	natoms_c = 40
-	natoms_r = 10
-	Δa = 1 #  interatomic distance on same axis
-	Δt = .001
-	
-	Default_Atom_Intensity = 800.0
-	
-	Niter_euler = 6000
-	
-	m = 10
-	mu = .11
-	natoms = natoms_c * natoms_r
+natoms_c = 40
+natoms_r = 10
 
-		apx = OffsetArray(zeros(natoms_r+2, natoms_c+2, Niter_euler+1 ), 0:natoms_r+1,0:natoms_c+1, 0:Niter_euler)
+ndims = 2  # Number of dimensions of the lattice
 	
-		apy = similar(apx)
+Δa = 1 #  interatomic distance on same axis
+Δt = .001
+		
+Default_Atom_Intensity = 400.0
+		
+Niter_euler = 4000
+		
+m = 10
+mu = .11
+natoms = natoms_c * natoms_r
 	
-		avx = similar(apx)
-		avy = similar(apx)		
+a_p = OffsetArray(zeros(ndims,   natoms_r+2,   natoms_c+2,   Niter_euler+1),
+			 1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_euler) # Array of positions
 	
+a_v = similar(a_p)  # Array of velocities
+
+a_F = similar(a_p) # Array of forces	
 	
-		aI  = similar(apx)  # Atom "intensity" (makes Klink as product of intensities divided by rest-length)
-		aE  = similar(apx)  # Atom "energy level" (sum abs(forces))
+a_I = similar(a_p[1,:,:,:]) # Array of atom "intensities" (makes Klink as product of intensities divided by rest-length)
 	
-	
-		aFx = similar(apx)
-		aFy = similar(apx)	
-	
+a_E = similar(a_p[1,:,:,:]) # Array of atom "energy level" (sum abs(forces))
+			
 end;
 
-# ╔═╡ 61f3e46a-2f2f-4028-b59a-4fd939b13eea
+# ╔═╡ a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 begin
 function draw_scatter()	
-
-#scatter(apx[1:natoms_r, 1:natoms_c][:], apy[1:natoms_r, 1:natoms_c][:], m = (:heat, 0.8, Plots.stroke(1, :green)), ms = 9 .* aI.+ 0, lab = false)
-
-		ys = apy[1:natoms_r, 1:natoms_c, end-1][:]
-		xs = apx[1:natoms_r, 1:natoms_c, end-1][:]
-		Es = aE[1:natoms_r, 1:natoms_c, end-1][:]
 	
-plot(xs, ys, color = [:black :orange], line = (1), marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, zcolor = Es  )		
+plot(a_p[1, 1:natoms_r, 1:natoms_c, end-1][:], 
+	 a_p[2, 1:natoms_r, 1:natoms_c, end-1][:], 
+	 color = [:black :orange], line = (1), 
+	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
+	zcolor = a_E[1:natoms_r, 1:natoms_c, end-1][:]  )		
 		
 end
 end	
 
-# ╔═╡ 6cf8315f-8fd5-4277-854e-d5aa1e9adbfb
+# ╔═╡ cea5e286-4bc1-457f-b300-fdff62047cc4
 function creategrid()
 
-for t = 0:1
-	
+for t = 0:1  # Initialize matrices at time 0 and 1 to set boundary conditions
+for dim = 1:ndims  #Sweep through dimensions		
 for i = 0:natoms_r+1, j = 0:natoms_c+1  # create grid
 	
-	apx[i,j, t] = j * Δa
-	apy[i,j, t] = i * Δa
-
-	avx[i,j, t] = 0.0
-	avy[i,j, t] = 0.0		
-		
-	aFx[i,j, t] = 0.0
-	aFy[i,j, t] = 0.0
-			
-	aE[i,j, t] = 0.0		# Reset atom energy level	
+	a_p[dim, i,j, t] = dim == 1 ? j * Δa : i * Δa
+	a_v[dim,i,j, t] = 0.0
+	a_F[dim,i,j, t] = 0.0
+	a_E[i,j, t] = 0.0  # Reset atom energy level	
 					
 end #for i,j
-		
+end # for dim			
 end # next time		
 
-	
-aI[1:natoms_r, 1:natoms_c, 0:Niter_euler] .= Default_Atom_Intensity		
-	
+a_I[1:natoms_r, 1:natoms_c, 0:Niter_euler] .= Default_Atom_Intensity			
 	
 draw_scatter()		
 	
 end
 
-# ╔═╡ b07a27ea-b155-42b3-a1e6-0a31ef2d9028
-creategrid();
-
 # ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 begin
-	#function apply_forces()
-	creategrid()
+
+creategrid()
 	
-	for t in 1:Niter_euler-1
-	
-	for i = 1:natoms_r, j = 1:natoms_c  
-		
-		aFy[i,j, t] = -m * 9.8
-		aFx[i,j, t] = 0
-		
-		indices_hv =   [(-1,0)  (0,-1) (0,1)  (1,0)]
-	    indices_diag = [(-1,-1) (-1,1) (1,-1) (1,1)]		
-			
-		indices = [indices_hv indices_diag]
-			
-		for ind in indices
-				
-			# calculate local stiffness
-			
-			rest_length = abs(ind[1]) + abs(ind[2]) == 1 ? Δa : Δa * √2	
-				
-			Klink = aI[i,j, t] * aI[i+ind[1],j+ind[2], t] / rest_length
+for t in 1:Niter_euler-1  # Time step	
+						
+# Compute Forces at time t by solving elastic and intertial equations based on the state at time t
+for i = 1:natoms_r, j = 1:natoms_c # Sweep through lattice
 
-			rest_length = ind[1] * ind[2] == 0 ? Δa : Δa * √2
-
-			Δx = (apx[i,j, t] - apx[i+ind[1],j+ind[2], t]) 
-			Δy = (apy[i,j, t] - apy[i+ind[1],j+ind[2], t]) 
-				
-			distance = √(  Δx^2 + Δy^2 )
-				
-			extension = distance - rest_length
-				
-			force = extension * Klink
-				
-
-			aFx[i,j, t] += -1* force * Δx/distance
-			aFy[i,j, t] += -1* force * Δy/distance		
-				
-			aE[i,j, t] += sum(abs.([ aFx[i,j, t], aFx[i,j, t] ]))
-				
-			end # for indices
+# Gravity loads			
+a_F[2,i,j, t] = -m * 9.8  # Note weights are constant now!!!
 		
-	end # for i, j
+indices_hv =   [(-1,0)  (0,-1) (0,1)  (1,0)] # Indices of adjacent atoms in same axes
+indices_diag = [(-1,-1) (-1,1) (1,-1) (1,1)] # Indices of adjacent atoms in diags
+			
+indices = [indices_hv indices_diag]
+			
+for ind in indices # For the current atom, get the elastic forces coming from neighbours
+				
+# calculate local stiffness: Rest length of link between atoms (it depends on whether the link is in the same axis or in a diagonal		
+rest_length = ind[1] * ind[2] == 0 ? Δa : Δa * √2
+								
+# Stiffness of the link: product of atom intensities normalized by rest length
+Klink = a_I[i,j, t] * a_I[i+ind[1],j+ind[2], t] / rest_length
+
+# Relative position vector of adjacent atom at ind wrt current [i,j]				
+rel_pos_vec = [(a_p[dim, i,j, t] - a_p[dim, i+ind[1],j+ind[2], t]) 
+				for dim in 1:ndims ]
+				
+distance = norm(rel_pos_vec)  # Scalar distance with neighbouring atom at ind
+extension = distance - rest_length
+				
+force = extension * Klink
+
+for dim = 1:ndims
+ a_F[dim, i,j, t] += -1* force * rel_pos_vec[dim]/distance		
+end # next dim					
+				
+a_E[i,j, t] += sum([ a_F[dim, i,j, t]^2 for dim in 1:ndims ]    )
+				
+end # for indices
+end # for i, j
 		
 	
 # F = m * Δv / Δt   ->   Δv = F/m * Δt
 # v = Δx / Δt    ->   Δx = v * Δt  ->    Δx = F/m * Δt ^2
-		
-		
- 
 # Strönberg
+		
 for i = 1:natoms_r, j = 1:natoms_c  					
-		apx[i,j, t+1] = 2*apx[i,j, t] - apx[i,j, t-1] + aFx[i,j, t] * Δt^2 /m 
-		apy[i,j, t+1] = 2*apy[i,j, t] - apy[i,j, t-1] + aFy[i,j, t] * Δt^2 /m	
+			
+for dim = 1:ndims	
+ a_p[dim, i,j, t+1] = 2*a_p[dim, i,j, t] - a_p[dim, i,j, t-1] + a_F[dim, i,j, t] * Δt^2 /m 			
+end # next dim				
+
 end		
 
-
-"""		
-# ñapa				
-for i = 1:natoms_r, j = 1:natoms_c  					
-		apx[i,j, t+1] = apx[i,j, t]  + aFx[i,j, t] * Δt^2 /m 
-		apy[i,j, t+1] = apy[i,j, t]  + aFy[i,j, t] * Δt^2 /m	
-end		
-"""
+""
 				
 		
+# Boundary conditions		
+a_p[1,1,1, t+1] = 1
+a_p[2,1,1, t+1] = 1
 		
-apx[1,1, t+1] = 1
-apy[1,1, t+1] = 1
-		
-apy[1,natoms_c, t+1] = 1		
+#a_p[2,1,natoms_c, t+1] = 1		
 		
 		
 end	# next time    -- function
@@ -237,13 +191,23 @@ begin
 	
 	@gif for t in 1:(Int64(floor(Niter_euler/100))):Niter_euler-1
 
+		"""
 		ys = apy[1:natoms_r, 1:natoms_c, t][:]
 		xs = apx[1:natoms_r, 1:natoms_c, t][:]
 		Es = aE[1:natoms_r, 1:natoms_c, t][:]
 		
 	
 plot(xs, ys, color = [:black :orange], line = (1), marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, zcolor = Es   )		
-	
+
+		"""
+plot(a_p[1, 1:natoms_r, 1:natoms_c, t][:], 
+	 a_p[2, 1:natoms_r, 1:natoms_c, t][:], 
+	 color = [:black :orange], line = (1), 
+	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
+	zcolor = a_E[1:natoms_r, 1:natoms_c, t][:]  )			
+		
+		
+		
 	end
 	
 end
@@ -546,17 +510,14 @@ TableOfContents(aside=true)
 
 # ╔═╡ Cell order:
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
-# ╟─58e8e7c4-7122-47e2-8529-1b761ebb8177
-# ╟─bb0c8c15-efcc-44da-ad4a-4ca1c7ef9583
-# ╠═6104ccf7-dfce-4b0b-a869-aa2b71deccde
+# ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
 # ╠═c08a6bf4-1b23-4fa6-b013-a8f8400b9cae
-# ╠═6cf8315f-8fd5-4277-854e-d5aa1e9adbfb
-# ╠═b07a27ea-b155-42b3-a1e6-0a31ef2d9028
-# ╠═61f3e46a-2f2f-4028-b59a-4fd939b13eea
+# ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
+# ╠═a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 # ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╠═b7c8d956-f723-4a8d-9195-88ffb67f5774
-# ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
 # ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
