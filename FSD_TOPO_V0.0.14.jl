@@ -50,16 +50,16 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
-	natoms_c = 9 # Number of columns of atoms in lattice
+	natoms_c = 10 # Number of columns of atoms in lattice
 	natoms_r = 2 # Number of rows of atoms in lattice
 	Δa = 1 #  interatomic distance on same axis
-	Δt = .005 # Time step
+	Δt = .01# Time step
 				
 	Default_Atom_Intensity = 400.  # This will build the stiffness
 				
-	Niter_ODE = 1800 # Number of iterations in solver
+	Niter_ODE = 800 # Number of iterations in solver
 				
-	initial_mass = 10. # Initial atom mass
+	initial_mass = 240. / natoms_c  # Initial atom mass
 	mu = 10.0 # Initial atom damping coefficient
 end;
 
@@ -89,30 +89,33 @@ buffer_matrix = copy(a_x) # Array to store temporaryly internal states for debug
 	
 end;
 
-# ╔═╡ cea5e286-4bc1-457f-b300-fdff62047cc4
-function initialize_grid()
+# ╔═╡ d7469640-9b09-4262-b738-29810bd19305
+plot([ a_x[2, 2,10, 1:end]     ])
 
-# create grid in i,j and sweep through dimensions	
-for dim = 1:ndims , i = 0:natoms_r+1, j = 0:natoms_c+1  
-	a_x[dim, i,j, :] .= dim == 1 ? j * Δa : i * Δa	
-end #for i,j
+# ╔═╡ b60b273e-21a2-4804-974e-cdf258f2b4ec
+function calculate_delta_v(t, h)
+	
+a_F[:, :,:, t] ./ a_m[:, :,:, t] .* h
+	
+end	
+	
 
-# set non-zero intensities only in the grid, let intensities of canvas margins = 0	
-a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity	
-	
-a_m  .= initial_mass   # Reset initial atom masses
-a_E  .= 0.0   # Reset initial atom energy
-a_v .= 0.0  # Reset initial atom velocities
-a_F .= 0.0  # Reset initial atom forces
-	
-buffer_matrix .= 0.0	
-	
-#draw_scatter()		
+# ╔═╡ c7885223-1572-459a-a4f8-5fbb5cd445ee
+function update_atom_internal_states(t)
+
+for i = 1:natoms_r, j = 1:natoms_c # Traverse complete lattice
+		
+# *** UPDATE ATOM INTERNAL STATE ******		
+# Update "energy" status at atom i,j at time t
+a_E[i,j, t] += norm(a_F[:, i,j, t])
+			
+# Update mass of atom i,j at time t
+#a_m[i,j, t] = a_I[i,j, t] / 40.		
+#**************************************
+		
+end # for i, j		
 	
 end
-
-# ╔═╡ d7469640-9b09-4262-b738-29810bd19305
-plot([a_v[2, 2,5, 1:end], a_x[2, 2,5, 1:end]     ])
 
 # ╔═╡ e084941c-447a-41bd-bf06-59dea45af028
 """
@@ -138,7 +141,7 @@ distance = norm(rel_pos_vec)  # Scalar distance with neighbouring atom at ind
 # Unit relative position vector of adjacent atom at ind wrt current [i,j]
 unit_rel_pos_vec = rel_pos_vec ./ distance
 			
-extension = distance - offset[3] # Link true extension
+extension = distance - offset[3] # Link true extension at time t
 
 force = extension * Klink # Elastic force (scalar) between i,j atom and atom at ind
 			
@@ -162,30 +165,15 @@ end # for offset (elastic forces created by neighbours)
 # Apply gravitational forces ("external", body force)
 a_F[2,i,j, t] += - a_m[2,i,j, t] * 9.8  # Use atom mass at time t		
 
-# a_F[:, :,:, t] .+= -.01 * mu * a_v[:, :,:, t-1].^2	# Drag force				
-
+		
+# Drag force at i,j **********************
+a_F[1:2, i,j, t] .+= -140 * mu * (norm(a_v[1:2, i,j, t-1]) .* a_v[1:2, i,j, t-1])[1:2]
 #******************************************	
-	
-	
+
 		
 end # for i, j	
-	
-end
 
-# ╔═╡ c7885223-1572-459a-a4f8-5fbb5cd445ee
-function update_atom_internal_states(t)
-
-for i = 1:natoms_r, j = 1:natoms_c # Traverse complete lattice
-		
-# *** UPDATE ATOM INTERNAL STATE ******		
-# Update "energy" status at atom i,j at time t
-a_E[i,j, t] += sum([ a_F[dim, i,j, t]^2 for dim in 1:ndims ])^.5
-			
-# Update mass of atom i,j at time t
-#a_m[i,j, t] = a_I[i,j, t] / 40.		
-#**************************************
-		
-end # for i, j		
+update_atom_internal_states(t)		
 	
 end
 
@@ -203,36 +191,6 @@ plot(a_x[1, 1:natoms_r, 1:natoms_c, t][:],
 	
 end
 
-# ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
-begin
-
-# INTEGRATE EQUATIONS OF MOTION AND SET BOUNDARY CONDITIONS	
-	
-initialize_grid() # Reset all matrices
-	
-for time in 1:Niter_ODE-1  # Time step	
-		
-compute_total_forces_on_atoms(time)	# Obtain matrix of atom net forces at this time
-	
-# Strönberg			
-@. a_x[:, :,:, time+1] = 2*a_x[:, :,:, time] - a_x[:, :,:, time-1] + a_F[:, :,:, time] * Δt^2 / a_m[:,:,:, time] 			
-		
-@. a_v[:,:,:, time] = a_v[:,:,:, time-1] + (a_x[:, :,:, time+1] -a_x[:, :,:, time]) / Δt
-		
-
-# Boundary conditions		
-a_x[1:ndims,1,1, time+1] .= 1
-a_x[1:ndims,1,natoms_c, time+1] .= (natoms_c , 1)
-		
-update_atom_internal_states(time)		
-		
-end	# next time    -- function
-	
-draw_animation()
-#draw_animated_heatmap()
-	
-end
-
 # ╔═╡ a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 begin
 function draw_scatter()	
@@ -241,7 +199,7 @@ plot(a_x[1, 1:natoms_r, 1:natoms_c, end-1][:],
 	 a_x[2, 1:natoms_r, 1:natoms_c, end-1][:], 
 	 color = [:black :orange], line = (1), 
 	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
-	zcolor = a_E[1:natoms_r, 1:natoms_c, end-1][:]  )		
+			zcolor = log.(a_E[1:natoms_r, 1:natoms_c, end-1][:])  )		
 		
 end
 end	
@@ -255,6 +213,70 @@ function draw_animated_heatmap()
 			, aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 	
 	end
+	
+end
+
+# ╔═╡ cea5e286-4bc1-457f-b300-fdff62047cc4
+function initialize_grid()
+
+# create grid in i,j and sweep through dimensions	
+for dim = 1:ndims , i = 0:natoms_r+1, j = 0:natoms_c+1  
+	a_x[dim, i,j, :] .= dim == 1 ? j * Δa : i * Δa	
+end #for i,j
+
+# set non-zero intensities only in the grid, let intensities of canvas margins = 0	
+a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity	
+	
+a_m  .= initial_mass   # Reset initial atom masses
+a_E  .= 0.0   # Reset initial atom energy
+a_v .= 0.0  # Reset initial atom velocities
+a_F .= 0.0  # Reset initial atom forces
+	
+buffer_matrix .= 0.0	
+	
+#draw_scatter()		
+	
+end
+
+# ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
+begin
+
+# INTEGRATE EQUATIONS OF MOTION AND SET BOUNDARY CONDITIONS	
+	
+initialize_grid() # Reset all matrices
+	
+for n in 1:Niter_ODE-1  # Time step	
+		
+compute_total_forces_on_atoms(n)	# Obtain matrix of atom net forces at this iteration
+
+
+		
+#a_v[:,:,:, n] .= a_v[:,:,:, n-1] .+ calculate_delta_v(n, Δt) .* Δt
+		
+		
+		
+		
+	
+# Strönberg			
+
+#a_x[:, :,:, n+1] .= 2*a_x[:, :,:, n] .- a_x[:, :,:, n-1] .+ calculate_delta_v(n, Δt)  .* Δt 			
+		
+		
+@. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 			
+		
+@. a_v[:,:,:, n] = (a_x[:, :,:, n+1] -a_x[:, :,:, n]) / Δt
+		
+
+# Boundary conditions		
+a_x[1:ndims,1,1, n+1] .= 1
+a_x[1:ndims,1,natoms_c, n+1] .= (natoms_c , 1)
+		
+	
+		
+end	# next time    -- function
+	
+draw_animation()
+#draw_animated_heatmap()
 	
 end
 
@@ -550,9 +572,10 @@ md"""
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
-# ╟─402abadb-d500-4801-8005-11d036f8f351
+# ╠═402abadb-d500-4801-8005-11d036f8f351
 # ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
+# ╠═b60b273e-21a2-4804-974e-cdf258f2b4ec
 # ╠═e084941c-447a-41bd-bf06-59dea45af028
 # ╟─c7885223-1572-459a-a4f8-5fbb5cd445ee
 # ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
@@ -579,5 +602,5 @@ md"""
 # ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
 # ╠═c58a7360-920c-11eb-2a15-bda7ed075812
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
-# ╠═fc7e00a0-9205-11eb-039c-23469b96de19
+# ╟─fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─13b32a20-9206-11eb-3af7-0feea278594c
