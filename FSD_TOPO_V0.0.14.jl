@@ -50,14 +50,14 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
-	natoms_c = 10 # Number of columns of atoms in lattice
-	natoms_r = 2 # Number of rows of atoms in lattice
+	natoms_c = 20 # Number of columns of atoms in lattice
+	natoms_r = 4 # Number of rows of atoms in lattice
 	Δa = 1 #  interatomic distance on same axis
-	Δt = .01# Time step
+	Δt = .005# Time step
 				
 	Default_Atom_Intensity = 400.  # This will build the stiffness
 				
-	Niter_ODE = 800 # Number of iterations in solver
+	Niter_ODE = 1800 # Number of iterations in solver
 				
 	initial_mass = 240. / natoms_c  # Initial atom mass
 	mu = 10.0 # Initial atom damping coefficient
@@ -91,14 +91,6 @@ end;
 
 # ╔═╡ d7469640-9b09-4262-b738-29810bd19305
 plot([ a_x[2, 2,10, 1:end]     ])
-
-# ╔═╡ b60b273e-21a2-4804-974e-cdf258f2b4ec
-function calculate_delta_v(t, h)
-	
-a_F[:, :,:, t] ./ a_m[:, :,:, t] .* h
-	
-end	
-	
 
 # ╔═╡ c7885223-1572-459a-a4f8-5fbb5cd445ee
 function update_atom_internal_states(t)
@@ -153,7 +145,7 @@ for dim = 1:ndims  # go through x, y... components of the force vector
 a_F[dim, i,j, t] += force * unit_rel_pos_vec[dim]	# Elastic force	
 
 # Damping force					
-a_F[dim, i,j, t] += -.0001 * mu * scalar_relative_axial_velocity[dim]* unit_rel_pos_vec[dim]	
+#a_F[dim, i,j, t] += 1. * mu * scalar_relative_axial_velocity[dim]* unit_rel_pos_vec[dim]	
 				
 end # next dim					
 
@@ -249,18 +241,7 @@ for n in 1:Niter_ODE-1  # Time step
 		
 compute_total_forces_on_atoms(n)	# Obtain matrix of atom net forces at this iteration
 
-
-		
-#a_v[:,:,:, n] .= a_v[:,:,:, n-1] .+ calculate_delta_v(n, Δt) .* Δt
-		
-		
-		
-		
-	
 # Strönberg			
-
-#a_x[:, :,:, n+1] .= 2*a_x[:, :,:, n] .- a_x[:, :,:, n-1] .+ calculate_delta_v(n, Δt)  .* Δt 			
-		
 		
 @. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 			
 		
@@ -575,7 +556,6 @@ md"""
 # ╠═402abadb-d500-4801-8005-11d036f8f351
 # ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
-# ╠═b60b273e-21a2-4804-974e-cdf258f2b4ec
 # ╠═e084941c-447a-41bd-bf06-59dea45af028
 # ╟─c7885223-1572-459a-a4f8-5fbb5cd445ee
 # ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
