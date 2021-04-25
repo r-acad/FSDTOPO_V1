@@ -40,6 +40,12 @@ begin
 	using Statistics, LinearAlgebra  # standard libraries
 end
 
+# ╔═╡ 66ba9dc4-1d50-410a-acdd-850c8f27fd3d
+md"""
+### LARGE DISPLACEMENTS EXPLICIT SOLVER
+Version 0.0.12 It works with Stronberg solution
+"""
+
 # ╔═╡ 454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 md"### Soft body section"
 
@@ -533,6 +539,7 @@ md"""
 #TableOfContents(aside=true)
 
 # ╔═╡ Cell order:
+# ╠═66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
 # ╠═402abadb-d500-4801-8005-11d036f8f351
