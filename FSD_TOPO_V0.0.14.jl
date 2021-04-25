@@ -50,16 +50,20 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
-	natoms_c = 20 # Number of columns of atoms in lattice
-	natoms_r = 4 # Number of rows of atoms in lattice
-	Δa = 1 #  interatomic distance on same axis
-	Δt = .005# Time step
+		
+	explicit_scale = 4
+		
+	natoms_c = 8 * explicit_scale # Number of columns of atoms in lattice
+	natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
+	
+	Δa = 1  #  interatomic distance on same axis
+	Δt = .001# Time step
 				
-	Default_Atom_Intensity = 400.  # This will build the stiffness
+	Default_Atom_Intensity = 400 * explicit_scale^2 / 8   # This will build the stiffness
 				
 	Niter_ODE = 1800 # Number of iterations in solver
 				
-	initial_mass = 240. / natoms_c  # Initial atom mass
+	initial_mass = 240. / explicit_scale^2  # Initial atom mass
 	mu = 10.0 # Initial atom damping coefficient
 end;
 
@@ -90,23 +94,13 @@ buffer_matrix = copy(a_x) # Array to store temporaryly internal states for debug
 end;
 
 # ╔═╡ d7469640-9b09-4262-b738-29810bd19305
-plot([ a_x[2, 2,10, 1:end]     ])
+plot([ a_x[2, 2,5, 1:end-1]     ])
 
-# ╔═╡ c7885223-1572-459a-a4f8-5fbb5cd445ee
-function update_atom_internal_states(t)
-
-for i = 1:natoms_r, j = 1:natoms_c # Traverse complete lattice
-		
-# *** UPDATE ATOM INTERNAL STATE ******		
-# Update "energy" status at atom i,j at time t
-a_E[i,j, t] += norm(a_F[:, i,j, t])
-			
-# Update mass of atom i,j at time t
-#a_m[i,j, t] = a_I[i,j, t] / 40.		
-#**************************************
-		
-end # for i, j		
-	
+# ╔═╡ 01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
+function apply_boundary_conditions(t)
+# Boundary conditions		
+a_x[1:ndims,1,1, t] .= 1
+a_x[1:ndims,1,natoms_c, t] .= (natoms_c , 1)
 end
 
 # ╔═╡ e084941c-447a-41bd-bf06-59dea45af028
@@ -144,6 +138,10 @@ force = extension * Klink # Elastic force (scalar) between i,j atom and atom at 
 for dim = 1:ndims  # go through x, y... components of the force vector
 a_F[dim, i,j, t] += force * unit_rel_pos_vec[dim]	# Elastic force	
 
+# Update "elastic energy" status at atom i,j at time t
+a_E[i,j, t] += norm(a_F[:, i,j, t])				
+				
+				
 # Damping force					
 #a_F[dim, i,j, t] += 1. * mu * scalar_relative_axial_velocity[dim]* unit_rel_pos_vec[dim]	
 				
@@ -165,7 +163,6 @@ a_F[1:2, i,j, t] .+= -140 * mu * (norm(a_v[1:2, i,j, t-1]) .* a_v[1:2, i,j, t-1]
 		
 end # for i, j	
 
-update_atom_internal_states(t)		
 	
 end
 
@@ -223,10 +220,7 @@ a_m  .= initial_mass   # Reset initial atom masses
 a_E  .= 0.0   # Reset initial atom energy
 a_v .= 0.0  # Reset initial atom velocities
 a_F .= 0.0  # Reset initial atom forces
-	
-buffer_matrix .= 0.0	
-	
-#draw_scatter()		
+
 	
 end
 
@@ -238,23 +232,17 @@ begin
 initialize_grid() # Reset all matrices
 	
 for n in 1:Niter_ODE-1  # Time step	
+
+apply_boundary_conditions(n)		
 		
 compute_total_forces_on_atoms(n)	# Obtain matrix of atom net forces at this iteration
 
 # Strönberg			
-		
 @. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 			
 		
 @. a_v[:,:,:, n] = (a_x[:, :,:, n+1] -a_x[:, :,:, n]) / Δt
-		
-
-# Boundary conditions		
-a_x[1:ndims,1,1, n+1] .= 1
-a_x[1:ndims,1,natoms_c, n+1] .= (natoms_c , 1)
-		
-	
-		
-end	# next time    -- function
+				
+end	# next iteration
 	
 draw_animation()
 #draw_animated_heatmap()
@@ -556,8 +544,8 @@ md"""
 # ╠═402abadb-d500-4801-8005-11d036f8f351
 # ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
+# ╠═01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 # ╠═e084941c-447a-41bd-bf06-59dea45af028
-# ╟─c7885223-1572-459a-a4f8-5fbb5cd445ee
 # ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╟─6960420d-bc50-4be3-9a26-2f43f14b903d
