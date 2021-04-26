@@ -33,7 +33,12 @@ end
 # ╔═╡ 66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 md"""
 ### LARGE DISPLACEMENTS EXPLICIT SOLVER
-Version 0.0.12 It works with Stronberg solution
+Version 0.0.14 It works with Stronberg solution
+
+Stable version 2021 04 26
+
+Next versions will try to implement RK5
+
 """
 
 # ╔═╡ 454494b5-aca5-43d9-8f48-d5ce14fbd5a9
@@ -51,13 +56,13 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
 		
-	explicit_scale = 3
+	explicit_scale = 1
 		
 	natoms_c = 12 * explicit_scale # Number of columns of atoms in lattice
 	natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
 	
-	Δa = 1.  #  interatomic distance on same axis
-	Δt = .003# Time step
+	Δa = 1.0    #  interatomic distance on same axis
+	Δt = .01  # Time step
 				
 	Default_Atom_Intensity = 500.0 * explicit_scale^.5 # This will build the stiffness
 				
@@ -205,8 +210,8 @@ end #for i,j
 # set non-zero intensities only in the grid, let intensities of canvas margins = 0	
 a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity	
 	
-a_m  .= initial_mass   # Reset initial atom masses
-a_E  .= 0.0   # Reset initial atom elastic energy
+a_m .= initial_mass   # Reset initial atom masses
+a_E .= 0.0   # Reset initial atom elastic energy
 a_v .= 0.0  # Reset initial atom velocities
 a_F .= 0.0  # Reset initial atom forces
 
@@ -228,7 +233,15 @@ elastic_forces(n)
 damping_forces(n)	
 external_forces(n)			
 		
-# Strönberg			
+	
+		
+#@. a_v[:, :,:, n] = a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt / a_m[:,:,:, n] 	
+
+#@. a_x[:, :,:, n+1] = a_x[:, :,:, n] + a_v[:, :,:, n] * Δt
+		
+
+		
+# Strönberg				
 @. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 			
 		
 @. a_v[:,:,:, n] = (a_x[:, :,:, n+1] -a_x[:, :,:, n]) / Δt
@@ -237,8 +250,6 @@ end	# next step
 	
 draw_animation()
 #draw_animated_heatmap()
-
-#14.0	
 	
 end
 
@@ -535,8 +546,8 @@ md"""
 # ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
 # ╟─402abadb-d500-4801-8005-11d036f8f351
-# ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
+# ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╠═a8011889-d844-4c98-bd3f-014e7eb58254
 # ╠═01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 # ╠═e084941c-447a-41bd-bf06-59dea45af028
@@ -545,7 +556,7 @@ md"""
 # ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╟─6960420d-bc50-4be3-9a26-2f43f14b903d
-# ╟─cea5e286-4bc1-457f-b300-fdff62047cc4
+# ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
 # ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
