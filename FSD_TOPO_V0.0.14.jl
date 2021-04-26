@@ -51,17 +51,17 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
 		
-	explicit_scale = 4
+	explicit_scale = 3
 		
-	natoms_c = 8 * explicit_scale # Number of columns of atoms in lattice
+	natoms_c = 12 * explicit_scale # Number of columns of atoms in lattice
 	natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
 	
-	Δa = 1  #  interatomic distance on same axis
-	Δt = .001# Time step
+	Δa = 1.  #  interatomic distance on same axis
+	Δt = .003# Time step
 				
-	Default_Atom_Intensity = 400 * explicit_scale^2 / 8   # This will build the stiffness
+	Default_Atom_Intensity = 500.0 * explicit_scale^.5 # This will build the stiffness
 				
-	Niter_ODE = 1800 # Number of iterations in solver
+	Niter_ODE = 800 # Number of iterations in solver
 				
 	initial_mass = 240. / explicit_scale^2  # Initial atom mass
 	mu = 10.0 # Initial atom damping coefficient
@@ -70,10 +70,10 @@ end;
 # ╔═╡ 402abadb-d500-4801-8005-11d036f8f351
 begin
 
-	ndims = 2 # Number of dimensions of the lattice
+ndims = 2 # Number of dimensions of the lattice
 	
 # Array of atom positions at all times, initialized to 0 and used as template for other matrices
-a_x = OffsetArray(zeros(ndims,natoms_r+2,natoms_c+2,Niter_ODE+1),
+a_x = OffsetArray(zeros(Float64,ndims,natoms_r+2,natoms_c+2,Niter_ODE+1),
 	  1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_ODE) 
 	
 a_v = copy(a_x)  # Array of velocities of all atoms at all times
@@ -89,7 +89,7 @@ offsets =  @SVector [
 
 	
 	
-buffer_matrix = copy(a_x) # Array to store temporaryly internal states for debuging	
+buffer_matrix = copy(a_x) # Array to store temporarily internal states for debuging	
 	
 end;
 
@@ -99,72 +99,58 @@ plot([ a_x[2, 2,5, 1:end-1]     ])
 # ╔═╡ 01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 function apply_boundary_conditions(t)
 # Boundary conditions		
-a_x[1:ndims,1,1, t] .= 1
-a_x[1:ndims,1,natoms_c, t] .= (natoms_c , 1)
+a_x[1:ndims,1,1, t] .= 1.0
+a_x[1:ndims,1,natoms_c, t] .= (Float64(natoms_c) , 1.0)
 end
 
 # ╔═╡ e084941c-447a-41bd-bf06-59dea45af028
 """
 Compute Forces acting on all atoms of the lattice at time t by solving elastic and inertial equations based on the position of the atoms and the external forces at time t
 """
-function compute_total_forces_on_atoms(t)
-	
-	
+function elastic_forces(t)
+		
 for i = 1:natoms_r, j = 1:natoms_c # Traverse complete lattice
-	
-#***** ELASTIC AND DAMPING FORCES ******			
-for offset in offsets # For the current atom, get the elastic forces coming from neighbours
+for offset in offsets # Traverse neighbors to get their elastic actions
 			
-# Stiffness of the link: product of atom intensities normalized by rest length (= offset[3])
+# Link stiffness: product of atom intensities normalized by rest length (= offset[3])
 @inbounds Klink = a_I[i,j, t] * a_I[i+offset[1],j+offset[2], t] / offset[3]
 
-# Relative position vector of adjacent atom at ind wrt current [i,j]			
-@inbounds rel_pos_vec = [(a_x[dim, i+offset[1],j+offset[2], t] - a_x[dim, i,j, t]) 
-					for dim in 1:ndims ]
-
-distance = norm(rel_pos_vec)  # Scalar distance with neighbouring atom at ind
+# Relative position vector of adjacent atom at ind wrt current [i,j]				
+@inbounds rel_pos_vec = (a_x[:, i+offset[1],j+offset[2], t] - a_x[:, i,j, t])		
 			
-# Unit relative position vector of adjacent atom at ind wrt current [i,j]
-unit_rel_pos_vec = rel_pos_vec ./ distance
+# Elastic force (scalar) between i,j atom and atom at ind
+force = (norm(rel_pos_vec) - offset[3]) * Klink # Extension x stiffness
 			
-extension = distance - offset[3] # Link true extension at time t
-
-force = extension * Klink # Elastic force (scalar) between i,j atom and atom at ind
-			
-@inbounds scalar_relative_axial_velocity = [(a_v[dim, i+offset[1],j+offset[2], t-1] - a_v[dim, i,j, t-1]) for dim in 1:ndims ] * unit_rel_pos_vec' # scalar product
-		
-			
-# Build elastic force vector acting on atom i,j between itself and atom at i,j+offset at time t
-for dim = 1:ndims  # go through x, y... components of the force vector
-a_F[dim, i,j, t] += force * unit_rel_pos_vec[dim]	# Elastic force	
+# Build elastic force vector acting on atom i,j from atom at i,j+offset at time t
+a_F[:, i,j, t] += force * normalize(rel_pos_vec)[:]	# Elastic force	
 
 # Update "elastic energy" status at atom i,j at time t
 a_E[i,j, t] += norm(a_F[:, i,j, t])				
-				
-				
-# Damping force					
-#a_F[dim, i,j, t] += 1. * mu * scalar_relative_axial_velocity[dim]* unit_rel_pos_vec[dim]	
-				
-end # next dim					
 
 end # for offset (elastic forces created by neighbours)
-#***** END OF  ELASTIC FORCES ******
-
-		
-#*** APPLY EXTERNAL FORCES ****		
-# Apply gravitational forces ("external", body force)
-a_F[2,i,j, t] += - a_m[2,i,j, t] * 9.8  # Use atom mass at time t		
-
-		
-# Drag force at i,j **********************
-a_F[1:2, i,j, t] .+= -140 * mu * (norm(a_v[1:2, i,j, t-1]) .* a_v[1:2, i,j, t-1])[1:2]
-#******************************************	
-
-		
 end # for i, j	
-
 	
 end
+
+# ╔═╡ 96740b63-f5d6-4721-8722-37baae48f47b
+function damping_forces(t)
+
+# Internal damping force	
+#@inbounds scalar_relative_axial_velocity = (a_v[:, i+offset[1],j+offset[2], t-1] - a_v[:, i,j, t-1]) * normalize(rel_pos_vec)' # scalar product				
+#a_F[:, i,j, t] += 1. * mu * scalar_relative_axial_velocity[:]* unit_rel_pos_vec[:]	
+	
+# Drag force at i,j 
+a_F[1:ndims,:,:,t] .+= -10.0*mu*(norm(a_v[1:ndims,:,:,t-1]) .* a_v[1:ndims,:,:,t-1])
+	
+end
+
+# ╔═╡ 0b3749f4-846f-4c66-858b-c560e0e27bca
+function external_forces(t)
+
+# Apply gravitational forces ("external", body force)
+a_F[2,:,:,t] += - a_m[2,:,:, t] * 9.8  # Use atom mass at time t		
+
+end	
 
 # ╔═╡ 30d5a924-7bcd-4eee-91fe-7b10004a4139
 function draw_animation()
@@ -205,19 +191,22 @@ function draw_animated_heatmap()
 	
 end
 
+# ╔═╡ a8011889-d844-4c98-bd3f-014e7eb58254
+draw_animated_heatmap()
+
 # ╔═╡ cea5e286-4bc1-457f-b300-fdff62047cc4
 function initialize_grid()
 
 # create grid in i,j and sweep through dimensions	
 for dim = 1:ndims , i = 0:natoms_r+1, j = 0:natoms_c+1  
-	a_x[dim, i,j, :] .= dim == 1 ? j * Δa : i * Δa	
+	a_x[dim, i,j, :] .= dim == 1 ? Float64(j * Δa) : Float64(i * Δa)
 end #for i,j
 
 # set non-zero intensities only in the grid, let intensities of canvas margins = 0	
 a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity	
 	
 a_m  .= initial_mass   # Reset initial atom masses
-a_E  .= 0.0   # Reset initial atom energy
+a_E  .= 0.0   # Reset initial atom elastic energy
 a_v .= 0.0  # Reset initial atom velocities
 a_F .= 0.0  # Reset initial atom forces
 
@@ -235,17 +224,21 @@ for n in 1:Niter_ODE-1  # Time step
 
 apply_boundary_conditions(n)		
 		
-compute_total_forces_on_atoms(n)	# Obtain matrix of atom net forces at this iteration
-
+elastic_forces(n)	
+damping_forces(n)	
+external_forces(n)			
+		
 # Strönberg			
 @. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 			
 		
 @. a_v[:,:,:, n] = (a_x[:, :,:, n+1] -a_x[:, :,:, n]) / Δt
 				
-end	# next iteration
+end	# next step
 	
 draw_animation()
 #draw_animated_heatmap()
+
+#14.0	
 	
 end
 
@@ -541,16 +534,19 @@ md"""
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
-# ╠═402abadb-d500-4801-8005-11d036f8f351
+# ╟─402abadb-d500-4801-8005-11d036f8f351
 # ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
+# ╠═a8011889-d844-4c98-bd3f-014e7eb58254
 # ╠═01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 # ╠═e084941c-447a-41bd-bf06-59dea45af028
+# ╟─96740b63-f5d6-4721-8722-37baae48f47b
+# ╟─0b3749f4-846f-4c66-858b-c560e0e27bca
 # ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╟─6960420d-bc50-4be3-9a26-2f43f14b903d
 # ╟─cea5e286-4bc1-457f-b300-fdff62047cc4
-# ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
 # ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
