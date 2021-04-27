@@ -30,6 +30,24 @@ begin
 	using Statistics, LinearAlgebra  # standard libraries
 end
 
+# ╔═╡ e3a19f76-87b8-4bb8-95fc-750a48321cfb
+Fv(v) =   -3 *v
+
+# ╔═╡ 9b279318-f7d7-4ac2-b6ba-9edb83c1555f
+Fe(x) = -4 * x
+
+# ╔═╡ 1c4f4c21-8e67-4df7-bec1-1a08c9f67464
+mymass = 20
+
+# ╔═╡ 813a6e2b-4bd0-4b7a-9545-107638e8f26e
+Fg(t) = mymass * 9.8
+
+# ╔═╡ 5eb95c3c-488a-4d2f-a4df-1cd22bc189ef
+f(x, u, t) = (1/mymass) * (Fv(u) + Fe(x) + Fg(t) )
+
+# ╔═╡ d3578df6-5592-4806-9114-91c0e0d1bf35
+g(x, u, t) = u
+
 # ╔═╡ 66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 md"""
 ### LARGE DISPLACEMENTS EXPLICIT SOLVER
@@ -37,7 +55,7 @@ Version 0.0.14 It works with Stronberg solution
 Stable version 2021 04 26
 Next versions will try to implement RK5
 
-Version 0.0.15. Implementation of MBB problem
+Version 0.0.15. Implementation of MBB problem. Not yet converged, best integration method is Verlet-Strongman
 
 """
 
@@ -56,23 +74,77 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
 		
-	explicit_scale = 5
+	explicit_scale = 2
 		
 	natoms_c = 6 * explicit_scale # Number of columns of atoms in lattice
 	natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
 	
 	const Δa = 1.0    #  interatomic distance on same axis
-	const Δt = .0005  # Time step
+	const Δt = .001  # Time step
 				
 	Default_Atom_Intensity = 500.0 * explicit_scale^.5 # This will build the stiffness
 				
-	const Niter_ODE = 21800 # Number of iterations in solver
+	const Niter_ODE = 800 # Number of iterations in solver
 				
 	initial_mass =   10. / explicit_scale^1  # Initial atom mass
-	const mu = .3 * explicit_scale # Initial atom damping coefficient
+	const mu = 2 * explicit_scale # Initial atom damping coefficient
 	
 	const G = 9.81 * 1.0
 end;
+
+# ╔═╡ 3c33576c-0320-4a1a-b375-7ccbcb177ce1
+begin 
+nsteps = 100_000
+
+x = zeros(nsteps)
+u = zeros(nsteps)
+t = zeros(nsteps)	
+
+t[1] = Δt
+	
+	
+for i = 2:nsteps-2
+		
+t[i] = t[i-1] + Δt
+		
+"""
+	k1 = f(x[i], u[i] , t[1])
+	k2 = f(x[i], u[i] + .5 * k1 * Δt , t[i] + Δt/2)
+	k3 = f(x[i], u[i] + .5 * k2 * Δt , t[i] + Δt/2)
+	k4 = f(x[i], u[i] +      k3 * Δt , t[i] + Δt)
+	
+u[i+1] = u[i] + 1/6 * Δt *(k1 + 2*k2 + 2*k3 + k4)
+
+		
+	k1 = g(x[i], u[i] , t[1])
+	k2 = g(x[i], u[i] + .5 * k1 * Δt , t[i] + Δt/2)
+	k3 = g(x[i], u[i] + .5 * k2 * Δt , t[i] + Δt/2)
+	k4 = g(x[i], u[i] +      k3 * Δt , t[i] + Δt)
+	
+x[i+1] = x[i] + 1/6 * Δt *(k1 + 2*k2 + 2*k3 + k4)
+"""
+
+
+"""		
+u[i+1] = u[i] + Δt * f(x[i], u[i], t[i])
+		
+x[i+1] = x[i] + Δt * u[i]		
+"""	
+
+		
+
+x[i+1] = 2*x[i] - x[i-1] + f(x[i], u[i], t[i]) * Δt^2 		
+		
+u[i+1] = (x[i+1] - x[i]) / Δt	
+	
+	
+	
+end
+
+end
+
+# ╔═╡ 46662437-8f37-4226-b371-96a4938c44b8
+plot(u)
 
 # ╔═╡ 402abadb-d500-4801-8005-11d036f8f351
 begin
@@ -101,7 +173,7 @@ buffer_matrix = copy(a_x) # Array to store temporarily internal states for debug
 end;
 
 # ╔═╡ d7469640-9b09-4262-b738-29810bd19305
-plot([ a_x[2, 2,2, 1:end-1]     ])
+plot([ a_x[2, 2,5, 1:end]     ])
 
 # ╔═╡ 01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 function apply_boundary_conditions(t)
@@ -168,7 +240,7 @@ end # for i, j
 			
 			
 # Drag force at i,j 
-a_F[1:ndims,:,:,t] .+= -10.0*mu*(norm(a_v[1:ndims,:,:,t-1]) .* a_v[1:ndims,:,:,t-1])
+a_F[1:ndims,:,:,t] .+= -10.0*mu*(norm(a_v[1:ndims,:,:,t]) .* a_v[1:ndims,:,:,t])
 	
 end
 
@@ -262,21 +334,37 @@ external_forces(n)
 
 #@. a_v[:,:,:, n+1] = a_v[:,:,:, n] + a_F[:, :,:, n] / a_m[:,:,:, n] * Δt		
 
+
+if n > 500000
 		
+@. a_v[:,:,:, n+1] = a_v[:,:,:, n] + Δt/ 24 * (55 * a_F[:, :,:, n] / a_m[:,:,:, n] - 59 * a_F[:, :,:, n-1] / a_m[:,:,:, n-1] + 37 * a_F[:, :,:, n-2] / a_m[:,:,:, n-2] - 9 * a_F[:, :,:, n-3] / a_m[:,:,:, n-3] )
+
 #@. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1]  + a_v[:, :,:, n] * Δt
 
-		
+@. a_x[:, :,:, n+1] = a_x[:, :,:, n] + Δt/ 24 * (55 * a_v[:, :,:, n] - 59 * a_v[:, :,:, n-1] + 37 * a_v[:, :,:, n-2] - 9 * a_v[:, :,:, n-3] )		
+			
+			
+			
+else 
+			
 # Strönberg				
-@. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 			
+@. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 				
 		
-@. a_v[:,:,:, n] = (a_x[:, :,:, n+1] -a_x[:, :,:, n]) / Δt
-				
+@. a_v[:,:,:, n+1] = (a_x[:, :,:, n+1] -a_x[:, :,:, n]) / Δt
+
+end			
+			
+			
+			
 end	# next step
 	
 draw_animation()
 #draw_animated_heatmap()
 	
 end
+
+# ╔═╡ bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
+md""" ## LINEAR FSDTOPO"""
 
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
@@ -566,11 +654,19 @@ md"""
 #TableOfContents(aside=true)
 
 # ╔═╡ Cell order:
-# ╟─66ba9dc4-1d50-410a-acdd-850c8f27fd3d
+# ╠═e3a19f76-87b8-4bb8-95fc-750a48321cfb
+# ╠═9b279318-f7d7-4ac2-b6ba-9edb83c1555f
+# ╠═813a6e2b-4bd0-4b7a-9545-107638e8f26e
+# ╠═1c4f4c21-8e67-4df7-bec1-1a08c9f67464
+# ╠═5eb95c3c-488a-4d2f-a4df-1cd22bc189ef
+# ╠═d3578df6-5592-4806-9114-91c0e0d1bf35
+# ╠═3c33576c-0320-4a1a-b375-7ccbcb177ce1
+# ╠═46662437-8f37-4226-b371-96a4938c44b8
+# ╠═66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
-# ╟─402abadb-d500-4801-8005-11d036f8f351
+# ╠═402abadb-d500-4801-8005-11d036f8f351
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 # ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╠═a8011889-d844-4c98-bd3f-014e7eb58254
@@ -582,6 +678,7 @@ md"""
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╟─6960420d-bc50-4be3-9a26-2f43f14b903d
 # ╟─cea5e286-4bc1-457f-b300-fdff62047cc4
+# ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
 # ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
