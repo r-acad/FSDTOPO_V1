@@ -56,20 +56,22 @@ $$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
 		
-	explicit_scale = 2
+	explicit_scale = 5
 		
 	natoms_c = 6 * explicit_scale # Number of columns of atoms in lattice
 	natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
 	
-	Δa = 1.0    #  interatomic distance on same axis
-	Δt = .002  # Time step
+	const Δa = 1.0    #  interatomic distance on same axis
+	const Δt = .0005  # Time step
 				
 	Default_Atom_Intensity = 500.0 * explicit_scale^.5 # This will build the stiffness
 				
-	Niter_ODE = 1800 # Number of iterations in solver
+	const Niter_ODE = 21800 # Number of iterations in solver
 				
 	initial_mass =   10. / explicit_scale^1  # Initial atom mass
-	mu = .5 * explicit_scale # Initial atom damping coefficient
+	const mu = .3 * explicit_scale # Initial atom damping coefficient
+	
+	const G = 9.81 * 1.0
 end;
 
 # ╔═╡ 402abadb-d500-4801-8005-11d036f8f351
@@ -174,7 +176,7 @@ end
 function external_forces(t)
 
 # Apply gravitational forces ("external", body force)
-a_F[2,:,:,t] += - a_m[2,:,:, t] * 9.8  # Use atom mass at time t		
+#a_F[2,:,:,t] += - a_m[2,:,:, t] * G  # Use atom mass at time t		
 
 	
 a_F[2,natoms_r,1,t] += - 4000.  # Use atom mass at time t		
@@ -257,6 +259,12 @@ apply_boundary_conditions(n)
 elastic_forces(n)	
 damping_forces(n)	
 external_forces(n)			
+
+#@. a_v[:,:,:, n+1] = a_v[:,:,:, n] + a_F[:, :,:, n] / a_m[:,:,:, n] * Δt		
+
+		
+#@. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1]  + a_v[:, :,:, n] * Δt
+
 		
 # Strönberg				
 @. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 			
