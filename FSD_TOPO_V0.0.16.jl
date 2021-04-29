@@ -31,10 +31,10 @@ begin
 end
 
 # ╔═╡ e3a19f76-87b8-4bb8-95fc-750a48321cfb
-Fv(v) =   -3 *v
+Fv(v) =   0 #-3 *v
 
 # ╔═╡ 9b279318-f7d7-4ac2-b6ba-9edb83c1555f
-Fe(x) = -4 * x
+Fe(x) = -400 * x
 
 # ╔═╡ 1c4f4c21-8e67-4df7-bec1-1a08c9f67464
 mymass = 20
@@ -56,6 +56,9 @@ Stable version 2021 04 26
 Next versions will try to implement RK5
 
 Version 0.0.15. Implementation of MBB problem. Not yet converged, best integration method is Verlet-Strongman
+
+Version 0.0.16. Verlet with velocity and simplification of matrices to remove time dependency of mass, stiffness etc (these will be updated in place when the topo algo is implemented)
+
 
 """
 
@@ -80,13 +83,14 @@ begin
 	natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
 	
 	const Δa = 1.0    #  interatomic distance on same axis
-	const Δt = .006  # Time step
-				
-	Default_Atom_Intensity = 500.0 * explicit_scale^.5 # This will build the stiffness
-				
-	const Niter_ODE = 400 # Number of iterations in solver
-				
-	initial_mass =   100. *  explicit_scale  # Initial atom mass
+	const Δt = .01  # Time step
+						
+	const Niter_ODE = 1400 # Number of iterations in solver
+	
+	
+	
+	Default_Atom_Intensity = 50.0 * explicit_scale^.5 # This will build the stiffness
+	initial_mass =   10. *  explicit_scale  # Initial atom mass
 	const mu = 20 * explicit_scale # Initial atom damping coefficient
 	
 	const G = 9.81 * 1.0
@@ -94,7 +98,7 @@ end;
 
 # ╔═╡ 3c33576c-0320-4a1a-b375-7ccbcb177ce1
 begin 
-nsteps = 1_000
+nsteps = 10_000
 
 x = zeros(nsteps)
 u = zeros(nsteps)
@@ -132,11 +136,17 @@ x[i+1] = x[i] + Δt * u[i]
 """	
 
 		
-
+"""
 x[i+1] = 2*x[i] - x[i-1] + f(x[i], u[i], t[i]) * Δt^2 		
 		
+u[i+1] = (x[i+1] - x[i-1]) / 2Δt	
+"""
+		
+x[i+1] = x[i] + u[i]* Δt + f(x[i], u[i], t[i]) * Δt^2 		
+		
 u[i+1] = (x[i+1] - x[i]) / Δt	
-	
+		
+		
 	
 	
 end
@@ -157,9 +167,14 @@ a_x = OffsetArray(zeros(Float64,ndims,natoms_r+2,natoms_c+2,Niter_ODE+1),
 	
 a_v = copy(a_x)  # Array of velocities of all atoms at all times
 a_F = copy(a_x) # Array of sum of forces acting on each atom at all times
-a_I = copy(a_x[1,:,:,:]) # Array of atom "intensities" (makes Klink as product of intensities divided by rest-length) at time t
-a_E = copy(a_I) # Array of atom "energy level" (sum abs(forces)) at time t
-a_m = copy(a_x) # Array of atom masses at time t (mass is the same in all dimensions, done this way to facilitate broadcast and remove for loops)
+
+a_I = OffsetArray(ones(Float64,natoms_r+2,natoms_c+2),
+	              0:natoms_r+1, 0:natoms_c+1)  # Array of atom "intensities" (makes Klink as product of intensities divided by rest-length) at current topo iteration	
+	
+	
+a_E = ones(Float64,natoms_r,natoms_c, Niter_ODE+1) # Array of atom "energy level" (sum abs(forces)) at current topo iteration
+	
+a_m = copy(a_x)  # Array of atom masses at current topo iteration (mass is the same in all dimensions and all times, done this way to facilitate broadcast and remove for loops)
 	
 # Array with all indice offsets of neighbors, first 4 are same-axis, next 4 are diagonals on the same plane. First two elements are index offset and third is link rest length
 offsets =  @SVector [
@@ -201,7 +216,7 @@ for i = 1:natoms_r, j = 1:natoms_c # Traverse complete lattice
 for offset in offsets # Traverse neighbors to get their elastic actions
 			
 # Link stiffness: product of atom intensities normalized by rest length (= offset[3])
-@inbounds Klink = a_I[i,j, t] * a_I[i+offset[1],j+offset[2], t] / offset[3]
+@inbounds Klink = a_I[i,j] * a_I[i+offset[1],j+offset[2]] / offset[3]
 
 # Relative position vector of adjacent atom at ind wrt current [i,j]				
 @inbounds rel_pos_vec = (a_x[:, i+offset[1],j+offset[2], t] - a_x[:, i,j, t])		
@@ -261,7 +276,7 @@ function draw_animation()
 	
 	@gif for t in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
 
-plot(a_x[1, 1:natoms_r, 1:natoms_c, t][:], 
+plot(a_x[1,1:natoms_r, 1:natoms_c, t][:], 
 	 a_x[2, 1:natoms_r, 1:natoms_c, t][:], 
 	 color = [:black :orange], line = (1), 
 	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
@@ -274,7 +289,7 @@ end
 begin
 function draw_scatter()	
 	
-plot(a_x[1, 1:natoms_r, 1:natoms_c, end-1][:], 
+plot(a_x[1,1:natoms_r, 1:natoms_c, end-1][:], 
 	 a_x[2, 1:natoms_r, 1:natoms_c, end-1][:], 
 	 color = [:black :orange], line = (1), 
 	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
@@ -307,7 +322,7 @@ for dim = 1:ndims , i = 0:natoms_r+1, j = 0:natoms_c+1
 end #for i,j
 
 # set non-zero intensities only in the grid, let intensities of canvas margins = 0	
-a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity	
+a_I[1:natoms_r, 1:natoms_c] .= Default_Atom_Intensity	
 	
 a_m .= initial_mass   # Reset initial atom masses
 a_E .= 0.0   # Reset initial atom elastic energy
@@ -332,30 +347,21 @@ elastic_forces(n)
 damping_forces(n)	
 external_forces(n)			
 
-#@. a_v[:,:,:, n+1] = a_v[:,:,:, n] + a_F[:, :,:, n] / a_m[:,:,:, n] * Δt		
-
-
-if n > 500000
-		
-@. a_v[:,:,:, n+1] = a_v[:,:,:, n] + Δt/ 24 * (55 * a_F[:, :,:, n] / a_m[:,:,:, n] - 59 * a_F[:, :,:, n-1] / a_m[:,:,:, n-1] + 37 * a_F[:, :,:, n-2] / a_m[:,:,:, n-2] - 9 * a_F[:, :,:, n-3] / a_m[:,:,:, n-3] )
-
-#@. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1]  + a_v[:, :,:, n] * Δt
-
-@. a_x[:, :,:, n+1] = a_x[:, :,:, n] + Δt/ 24 * (55 * a_v[:, :,:, n] - 59 * a_v[:, :,:, n-1] + 37 * a_v[:, :,:, n-2] - 9 * a_v[:, :,:, n-3] )		
-			
-			
-			
-else 
-			
-# Strönberg				
+"""
+# Verlet-Strönberg			
 @. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 				
 		
 @. a_v[:,:,:, n+1] = (a_x[:, :,:, n+1] - a_x[:, :,:, n-1]) / (2*Δt)
+"""
+		
 
-end			
-			
-			
-			
+# Verlet with velocity. This formulation adds a bit of numerical damping
+
+@. a_x[:, :,:, n+1] = a_x[:, :,:, n] + a_v[:, :,:, n]* Δt + a_F[:, :,:, n] * Δt^2 / a_m[:,:, :, n] 				
+		
+@. a_v[:,:,:, n+1] = (a_x[:, :,:, n+1] - a_x[:, :,:, n-1]) / (2*Δt)		
+	
+	
 end	# next step
 	
 draw_animation()
@@ -662,22 +668,22 @@ md"""
 # ╠═d3578df6-5592-4806-9114-91c0e0d1bf35
 # ╠═3c33576c-0320-4a1a-b375-7ccbcb177ce1
 # ╠═46662437-8f37-4226-b371-96a4938c44b8
-# ╠═66ba9dc4-1d50-410a-acdd-850c8f27fd3d
+# ╟─66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
-# ╠═402abadb-d500-4801-8005-11d036f8f351
+# ╟─402abadb-d500-4801-8005-11d036f8f351
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 # ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╠═a8011889-d844-4c98-bd3f-014e7eb58254
-# ╠═01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
+# ╟─01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 # ╠═e084941c-447a-41bd-bf06-59dea45af028
-# ╠═96740b63-f5d6-4721-8722-37baae48f47b
-# ╠═0b3749f4-846f-4c66-858b-c560e0e27bca
-# ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
-# ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
-# ╟─6960420d-bc50-4be3-9a26-2f43f14b903d
-# ╟─cea5e286-4bc1-457f-b300-fdff62047cc4
+# ╟─96740b63-f5d6-4721-8722-37baae48f47b
+# ╟─0b3749f4-846f-4c66-858b-c560e0e27bca
+# ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╠═a755dbab-6ac9-4a9e-a397-c47efce4d2f7
+# ╠═6960420d-bc50-4be3-9a26-2f43f14b903d
+# ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
