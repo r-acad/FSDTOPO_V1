@@ -18,177 +18,155 @@ begin
 	import Pkg
 	Pkg.activate(mktempdir())
 	Pkg.add([
-			Pkg.PackageSpec(name="Images", version="0.22.4"), 
-			Pkg.PackageSpec(name="ImageMagick", version="0.7"), 
-			Pkg.PackageSpec(name="PlutoUI", version="0.7"), 
 			Pkg.PackageSpec(name="Plots", version="1.10"), 
-			Pkg.PackageSpec(name="Colors", version="0.12"),
-			Pkg.PackageSpec(name="ColorSchemes", version="3.10"),
-			Pkg.PackageSpec(name="ForwardDiff"),
-			Pkg.PackageSpec(name="LaTeXStrings"),
 			Pkg.PackageSpec(name="OffsetArrays"),
 			Pkg.PackageSpec(name="SparseArrays"),
 			Pkg.PackageSpec(name="StaticArrays")
 			])
 
 	using PlutoUI
-	using Colors, ColorSchemes, Images
 	using Plots, OffsetArrays, SparseArrays
 	using StaticArrays
-	using LaTeXStrings
-	
 	using Statistics, LinearAlgebra  # standard libraries
 end
 
 # ╔═╡ 66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 md"""
-### LARGE DISPLACEMENTS EXPLICIT SOLVER
-Version 0.0.12 It works with Stronberg solution
+### LARGE DISPLACEMENTS VERLET SOLVER
+Version 0.0.14 It works with Störmer solution
+Stable version 2021 04 26
+Next versions will try to implement RK5
+
+Version 0.0.15. Implementation of MBB problem. Not yet converged, best integration method is Verlet-Störmer
+
+Version 0.0.16. Verlet with velocity and simplification of matrices to remove time dependency of mass, stiffness etc (these will be updated in place when the topo algo is implemented)
+
+Version 0.0.17. Change to Mass as the source of elastic force, remove broadcasting and go back to nested loops
+
+
+
 """
 
 # ╔═╡ 454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 md"### Soft body section"
 
-# ╔═╡ 6104ccf7-dfce-4b0b-a869-aa2b71deccde
-md"""
-$$\mathbf{x}_{k+1} = \mathbf{x}_k + h \, \mathbf{f}(\mathbf{x}_k),$$
-"""
-
-# ╔═╡ 402abadb-d500-4801-8005-11d036f8f351
+# ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
-	natoms_c = 20
-	natoms_r = 7
-	
-	ndims = 2 # Number of dimensions of the lattice
 		
-	Δa = 1 #  interatomic distance on same axis
-	Δt = .001
-			
-	Default_Atom_Intensity = 400.
-			
-	Niter_ODE = 2800
-			
-	initial_mass = 10.
-	mu = .11
+	explicit_scale = 20
+	const Δt = .1   # Time step
 	
+	natoms_c = 6 * explicit_scale # Number of columns of atoms in lattice
+	natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
 	
-natoms = natoms_c * natoms_r
+	const Δa = 1.0    #  interatomic distance on same axis
 	
-a_x = OffsetArray(zeros(ndims,   natoms_r+2,   natoms_c+2,   Niter_ODE+1),
-1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_ODE) # Array of positions at all times
+	const Niter_ODE = 100_000 # Number of iterations in solver
+		
+	initial_mass = 3. #*  explicit_scale  # Initial atom mass
 	
-a_v = copy(a_x)  # Array of velocities of all atoms at all times
-a_F = copy(a_x) # Array of sum of forces acting on each atom at all times
-a_I = copy(a_x[1,:,:,:]) # Array of atom "intensities" (makes Klink as product of intensities divided by rest-length) at time t
-a_E = copy(a_I) # Array of atom "energy level" (sum abs(forces)) at time t
-a_m = copy(a_I) # Array of atom masses at time t
-	
-offsets_hv =   [(-1, 0) (0,-1) (0,1)  (1,0)] # Offsets of adjacent atoms in same axes
-offsets_diag = [(-1,-1) (-1,1) (1,-1) (1,1)] # Offsets of adjacent atoms in diags
-offsets = [offsets_hv offsets_diag] # Array with all indice offsets of neighbours		
+	#const mu =  .7 #* explicit_scale # Initial atom damping coefficient	
+	const num_frict = 0.003  # Friction coefficient in Verlet with friction
+	#const G = 9.81 * 1.0
 	
 end;
 
-# ╔═╡ cea5e286-4bc1-457f-b300-fdff62047cc4
-function initialize_grid()
-	
-for dim = 1:ndims , i = 0:natoms_r+1, j = 0:natoms_c+1  # create grid in i,j and sweep through dimensions
-	a_x[dim, i,j, :] .= dim == 1 ? j * Δa : i * Δa	
-end #for i,j
-			
-a_I[1:natoms_r, 1:natoms_c, 0:Niter_ODE] .= Default_Atom_Intensity	# set only in the grid, let intensities of canvas margins = 0
-	
-a_m[:,:, :] .= initial_mass   # Reset initial atom masses
-a_E[:,:, :] .= 0.0   # Reset initial atom energy
-a_v[:,:,:,:] .= 0.0  # Reset initial atom velocities
-a_F[:,:,:,:] .= 0.0  # Reset initial atom forces
-	
-#draw_scatter()		
-	
-end
-
-# ╔═╡ a755dbab-6ac9-4a9e-a397-c47efce4d2f7
+# ╔═╡ 402abadb-d500-4801-8005-11d036f8f351
 begin
-function draw_scatter()	
+
+ndims = 2 # Number of dimensions of the lattice
 	
-plot(a_x[1, 1:natoms_r, 1:natoms_c, end-1][:], 
-	 a_x[2, 1:natoms_r, 1:natoms_c, end-1][:], 
-	 color = [:black :orange], line = (1), 
-	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
-	zcolor = a_E[1:natoms_r, 1:natoms_c, end-1][:]  )		
-		
+# Array of atom positions at all times, initialized to 0 and used as template for other matrices
+a_x = OffsetArray(zeros(Float64,ndims,natoms_r+2,natoms_c+2,Niter_ODE+1),
+	  1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_ODE) 
+	
+#a_v = copy(a_x)  # Array of velocities of all atoms for all times
+a_F = copy(a_x) # Array of sum of forces acting on each atom for all times
+
+# Array of atom "masses" (makes Klink as if masses were srpings in series, all of it divided by rest-length) at current topo iteration		
+a_M = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2), 0:natoms_r+1, 0:natoms_c+1)  
+	
+a_E = ones(Float64,natoms_r,natoms_c, Niter_ODE+1) # Array of atom "energy level" (sum abs(forces)) at current topo iteration
+	
+# Array with all indice offsets of neighbors, first 4 are same-axis, next 4 are diagonals on the same plane. First two elements are index offset and third is link rest length
+offsets =  @SVector [
+		(-1,  0, Δa), (0, -1, Δa) , (0, 1, Δa),  (1, 0, Δa) , 
+		(-1, -1, Δa * √2), (-1, 1, Δa * √2) , (1, -1, Δa * √2), (1, 1, Δa * √2)]	
+	
+end;
+
+# ╔═╡ d7469640-9b09-4262-b738-29810bd19305
+plot([ a_x[2, 1,5, 1:end]     ])
+
+# ╔═╡ e3a15766-defe-469f-b992-b5357a7bfd8d
+function modulate(n, fulliter)
+	
+if n < fulliter	
+amplitude = 1-cos(n/fulliter * pi/2)
+else
+amplitude = 1		
 end
-end	
 
-# ╔═╡ fc998580-e00a-4e15-be70-00582284f491
+return amplitude
+end
+
+# ╔═╡ a1fc0684-5379-43d0-9dbd-b2efd1963e0f
+md"""
+Nit = $(@bind Nit Slider(1:Niter_ODE, show_value=true, default=1))
 """
-function compute_velocities(t)
 
-for dim = 1:ndims, i = 1:natoms_r, j = 1:natoms_c  	
+# ╔═╡ 01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
+function apply_boundary_conditions(t)
+# Boundary conditions		
+	
+""" #Cantilever beam	
+a_x[1:ndims,1,1, t] .= 1.0
+a_x[1:ndims,1,natoms_c, t] .= (Float64(natoms_c) , 1.0)
+"""
 
-a_v[dim, i,j, t] += 
-		
-end	# j,i, dim	
+a_x[1,:,1, t] .= 1.0	
+	
+a_x[2,1,natoms_c, t] = 1.0	# simple support on the right
+	
 	
 end
-"""
 
 # ╔═╡ e084941c-447a-41bd-bf06-59dea45af028
 """
 Compute Forces acting on all atoms of the lattice at time t by solving elastic and inertial equations based on the position of the atoms and the external forces at time t
 """
-function compute_forces(t)
-	
-for i = 1:natoms_r, j = 1:natoms_c # Traverse complete lattice
-
-# Apply gravitational forces ("external", body force)
-a_F[2,i,j, t] = - a_m[i,j, t] * 9.8  # Note weights are constant now!!!
+function elastic_forces(t)
 		
-	offset_count = 0	
-	for offset in offsets # For the current atom, get the elastic forces coming from neighbours
-	offset_count += 1
+@inbounds  for i = 1:natoms_r, j = 1:natoms_c, offset in offsets # Traverse complete lattice, Traverse neighbors to get their elastic actions
 			
-	# calculate local stiffness: Rest length of link between atoms (it depends on whether the link is in the same axis or in a diagonal		
+# Link stiffness: product of atom masses normalized by rest length (= offset[3])
+Klink = a_M[i,j] * a_M[i+offset[1],j+offset[2]] / offset[3]
+
+# Relative position vector of adjacent atom at ind wrt current [i,j]				
+rel_pos_vec = (a_x[:, i+offset[1],j+offset[2], t] - a_x[:, i,j, t])		
 			
-	rest_length =  if offset_count < 5 Δa else Δa * √2 end
+# Elastic force (scalar) between i,j atom and atom at ind
+force = (norm(rel_pos_vec) - offset[3]) * Klink # Extension x stiffness
 			
-	# Stiffness of the link: product of atom intensities normalized by rest length
-	Klink = a_I[i,j, t] * a_I[i+offset[1],j+offset[2], t] / rest_length
+# Build elastic force vector acting on atom i,j from atom at i,j+offset at time t
+a_F[:, i,j, t] += force * normalize(rel_pos_vec)[:]	# Elastic force	
 
-	# Relative position vector of adjacent atom at ind wrt current [i,j]				
-	rel_pos_vec = [(a_x[dim, i,j, t] - a_x[dim, i+offset[1],j+offset[2], t]) 
-					for dim in 1:ndims ]
+# Update "elastic energy" status at atom i,j at time t
+a_E[i,j, t] += norm(a_F[:, i,j, t])				
 
-	distance = norm(rel_pos_vec)  # Scalar distance with neighbouring atom at ind
-	extension = distance - rest_length # Link true extension
 
-	force = extension * Klink # Elastic force (scalar) between i,j atom and atom at ind
-
-	# Build force vector acting on atom i,j between itself and atom at i,j+offset at time t
-	for dim = 1:ndims  # go through x, y... components of the force vector
-	 a_F[dim, i,j, t] += -1 * force * rel_pos_vec[dim]/distance	# Elastic force
-	 a_F[dim, i,j, t] += -mu * a_v[dim, i,j, t]	# Viscous force		
-				
-	end # next dim					
-
-	# Update "energy" status at atom i,j at time t
-	a_E[i,j, t] += sum([ a_F[dim, i,j, t]^2 for dim in 1:ndims ])^.5
-			
-	# Update mass of atom i,j at time t
-	#a_m[i,j, t] = a_I[i,j, t] / 40.				
-					
-
-		end # for offset
-end # for i, j	
+end # for offset, j, i
 	
 end
 
 # ╔═╡ 30d5a924-7bcd-4eee-91fe-7b10004a4139
 function draw_animation()
 	
-	@gif for t in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
+@gif for t in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
+		
+#@gif for t in 1:Niter_ODE-1		
 
-plot(a_x[1, 1:natoms_r, 1:natoms_c, t][:], 
+plot(a_x[1,1:natoms_r, 1:natoms_c, t][:], 
 	 a_x[2, 1:natoms_r, 1:natoms_c, t][:], 
 	 color = [:black :orange], line = (1), 
 	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
@@ -197,53 +175,128 @@ plot(a_x[1, 1:natoms_r, 1:natoms_c, t][:],
 	
 end
 
+# ╔═╡ a755dbab-6ac9-4a9e-a397-c47efce4d2f7
+begin
+function draw_scatter()	
+	
+plot(a_x[1,1:natoms_r, 1:natoms_c, end-1][:], 
+	 a_x[2, 1:natoms_r, 1:natoms_c, end-1][:], 
+	 color = [:black :orange], line = (1), 
+	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
+			zcolor = log.(a_E[1:natoms_r, 1:natoms_c, end-1][:])  )		
+		
+end
+end	
+
 # ╔═╡ 6960420d-bc50-4be3-9a26-2f43f14b903d
 function draw_animated_heatmap()
 	
-	@gif for t in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
+	@gif for Nit in 1:(Int64(floor(Niter_ODE/1000))):30000 #Niter_ODE-1
 		
-	heatmap( log.(a_E[1:natoms_r, 1:natoms_c, t])
+	heatmap( log.(a_E[1:natoms_r, 1:natoms_c, Nit])
 			, aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 	
 	end
 	
-end;
+end
+
+# ╔═╡ a8011889-d844-4c98-bd3f-014e7eb58254
+draw_animated_heatmap()
+
+# ╔═╡ cea5e286-4bc1-457f-b300-fdff62047cc4
+function initialize_grid()
+
+# create grid in i,j and sweep through dimensions	
+for dim = 1:ndims , i = 0:natoms_r+1, j = 0:natoms_c+1  
+	a_x[dim, i,j, :] .= dim == 1 ? Float64(j * Δa) : Float64(i * Δa)
+end #for i,j
+
+# set non-zero masses only in the grid, let intensities of canvas margins = 0	
+a_M[1:natoms_r, 1:natoms_c] .= initial_mass	
+
+a_E .= 0.0   # Reset initial atom elastic energy
+#a_v .= 0.0  # Reset initial atom velocities
+a_F .= 0.0  # Reset initial atom forces
+	
+end
 
 # ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 begin
 
-initialize_grid()
+# INTEGRATE EQUATIONS OF MOTION AND SET BOUNDARY CONDITIONS	
 	
-for time in 1:Niter_ODE-1  # Time step	
-
-compute_forces(time)		
+initialize_grid() # Reset all matrices
 	
-# F = m * Δv / Δt   ->   Δv = F/m * Δt
-# v = Δx / Δt    ->   Δx = v * Δt  ->    Δx = F/m * Δt ^2
+	
+@inbounds  for n in 1:Niter_ODE-1  # Time step	
 
-# Strönberg
-for dim = 1:ndims, i = 1:natoms_r, j = 1:natoms_c  					
+apply_boundary_conditions(n)		
+
+# Apply forces	in lattice
+
+		
+# Apply external forces
+a_F[2,natoms_r,1,n] += - 2. * modulate(n, 10000) 	
+		
+fr = num_frict * modulate(n, 30000)
+		
+@inbounds  for i = 1:natoms_r, j = 1:natoms_c, dim = 1:ndims # Traverse complete lattice
+
+
+# Apply gravitational forces ("external", body force)
+#a_F[2,:,:,t] += - a_m[2,:,:, t] * G * amplitude # Use atom mass at time t							
 			
-a_x[dim, i,j, time+1] = 2*a_x[dim, i,j, time] - a_x[dim, i,j, time-1] + a_F[dim, i,j, time] * Δt^2 / a_m[i,j, time] 			
-
-end	# j,i, dim
-
-# Boundary conditions		
-a_x[1,1,1, time+1] = 1
-a_x[2,1,1, time+1] = 1
-
-a_x[1,1,natoms_c, time+1] = natoms_c			
-a_x[2,1,natoms_c, time+1] = 1		
+# Compute elastic forces at node i,j		
+@inbounds  for offset in offsets # Traverse neighbors to get their elastic actions
+			
+# Link stiffness: mass taken as source of stiffness, connected in series, normalized by rest length (= offset[3])
+# Note that atoms in ther margins "kill" the stiffness of the links				
+Klink = modulate(n, 30000) * 30.0 *  1/ (1/a_M[i,j] + 1/a_M[i+offset[1],j+offset[2]] ) / offset[3]		
 				
-end	# next time    -- function
+# Relative position vector of adjacent atom at ind wrt current [i,j]				
+rel_pos_vec = (a_x[:, i+offset[1],j+offset[2], n] - a_x[:, i,j, n])		
+rel_pos_direction = normalize(rel_pos_vec)
+				
+# Elastic force (scalar) between i,j atom and atom at ind
+force = (norm(rel_pos_vec) - offset[3]) * Klink # Extension x stiffness
+			
+# Build elastic force vector acting on atom i,j from atom at i,j+offset at time t
+a_F[:, i,j, n] += force * rel_pos_direction[:]	# Elastic force	
+
+# Update "elastic energy" status at atom i,j at time t
+a_E[i,j, n] += norm(a_F[:, i,j, n])			
+
+			
+# Internal damping force			
+#scalar_relative_axial_velocity = (a_v[:, i+offset[1],j+offset[2], n] - a_v[:, i,j, n]) * rel_pos_direction' # scalar product				
 	
-#draw_animation()
-draw_animated_heatmap()
+#a_F[:, i,j, n] += mu * scalar_relative_axial_velocity * rel_pos_direction				
+end # for offset			
+			
+
+# Drag force at i,j 
+#a_F[1:ndims,:,:,n] .+= -mu*(norm(a_v[1:ndims,:,:,n]) .* a_v[1:ndims,:,:,n])			
+			
+# Verlet-Störmer integration with artificial friction damping			
+a_x[dim, i,j, n+1] = (2-fr) * a_x[dim, i,j, n] - (1-fr)* a_x[dim, i,j, n-1] + (1-fr)* a_F[dim, i,j, n] * Δt^2 / a_M[i,j] 	
+	
+			
+		
+#a_v[dim, i,j, n+1] = (a_x[dim, i,j, n+1] - a_x[dim, i,j, n]) / (Δt)
+
+			
+end # next dim, j ,i
+			
+	
+end	# next step
+	
+draw_animation()
+#draw_animated_heatmap()
 	
 end
 
-# ╔═╡ b7c8d956-f723-4a8d-9195-88ffb67f5774
-
+# ╔═╡ bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
+md""" ## LINEAR FSDTOPO"""
 
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
@@ -275,7 +328,7 @@ thick_ini = 1.0
 min_thick = 0.00001
 		
 scale = 1
-nelx = 60*scale ; nely = 20*scale  #mesh size
+nelx = 6*scale ; nely = 2*scale  #mesh size
 
 Niter = 35
 
@@ -322,12 +375,6 @@ end;
 md"""
 #### Call FSDTOPO with Niter
 """
-
-# ╔═╡ 52b66b2c-c68e-41eb-aff6-46234e23debf
-(a, b) = 5 > 13 ? (3, 4) : (8,9)
-
-# ╔═╡ 5124345d-2b5f-41fd-b2b3-a2c7cbb832bb
-b
 
 # ╔═╡ 2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
 md"""
@@ -539,19 +586,23 @@ md"""
 #TableOfContents(aside=true)
 
 # ╔═╡ Cell order:
-# ╠═66ba9dc4-1d50-410a-acdd-850c8f27fd3d
+# ╟─66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
-# ╟─6104ccf7-dfce-4b0b-a869-aa2b71deccde
+# ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
 # ╠═402abadb-d500-4801-8005-11d036f8f351
-# ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
-# ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
+# ╠═d7469640-9b09-4262-b738-29810bd19305
+# ╠═e3a15766-defe-469f-b992-b5357a7bfd8d
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
-# ╟─fc998580-e00a-4e15-be70-00582284f491
-# ╠═e084941c-447a-41bd-bf06-59dea45af028
-# ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╟─a1fc0684-5379-43d0-9dbd-b2efd1963e0f
+# ╠═a8011889-d844-4c98-bd3f-014e7eb58254
+# ╟─01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
+# ╟─e084941c-447a-41bd-bf06-59dea45af028
+# ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╠═6960420d-bc50-4be3-9a26-2f43f14b903d
-# ╠═b7c8d956-f723-4a8d-9195-88ffb67f5774
-# ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
+# ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
+# ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
 # ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
@@ -559,9 +610,7 @@ md"""
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
-# ╠═52b66b2c-c68e-41eb-aff6-46234e23debf
-# ╠═5124345d-2b5f-41fd-b2b3-a2c7cbb832bb
-# ╟─2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
+# ╠═2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
 # ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee

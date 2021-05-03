@@ -80,14 +80,14 @@ begin
 	natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
 	
 	const Δa = 1.0    #  interatomic distance on same axis
-	const Δt = .006  # Time step
+	const Δt = .06  # Time step
 				
-	Default_Atom_Intensity = 500.0 * explicit_scale^.5 # This will build the stiffness
+	Default_Atom_Intensity = 200.0 #* explicit_scale^.5 # This will build the stiffness
 				
 	const Niter_ODE = 400 # Number of iterations in solver
 				
-	initial_mass =   100. *  explicit_scale  # Initial atom mass
-	const mu = 20 * explicit_scale # Initial atom damping coefficient
+	initial_mass =   100. #*  explicit_scale  # Initial atom mass
+	const mu = 4 # * explicit_scale # Initial atom damping coefficient
 	
 	const G = 9.81 * 1.0
 end;
@@ -348,7 +348,7 @@ if n > 500000
 else 
 			
 # Strönberg				
-@. a_x[:, :,:, n+1] = 2*a_x[:, :,:, n] - a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 				
+@. a_x[:, :,:, n+1] = (2 - .05) * a_x[:, :,:, n] - (1 - .05) * a_x[:, :,:, n-1] + a_F[:, :,:, n] * Δt^2 / a_m[:,:,:, n] 				
 		
 @. a_v[:,:,:, n+1] = (a_x[:, :,:, n+1] - a_x[:, :,:, n-1]) / (2*Δt)
 
