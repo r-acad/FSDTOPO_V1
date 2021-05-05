@@ -43,7 +43,7 @@ Version 0.0.16. Verlet with velocity and simplification of matrices to remove ti
 
 Version 0.0.17. Change to Mass as the source of elastic force, remove broadcasting and go back to nested loops
 
-
+v0.0.21 Optimization of for loops and static array of offsets
 
 """
 
@@ -53,7 +53,7 @@ md"### Soft body section"
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
 		
-	explicit_scale = 2
+	explicit_scale = 10
 	const Δt = .1   # Time step
 	
 	natoms_c = 6 * explicit_scale # Number of columns of atoms in lattice
@@ -61,13 +61,14 @@ begin
 	
 	const Δa = 1.0    #  interatomic distance on same axis
 	
-	const Niter_ODE = 10_000 # Number of iterations in solver
+	const Niter_ODE = 3500 # Number of iterations in solver
 		
 	initial_mass = 3. #*  explicit_scale  # Initial atom mass
 	
 	#const mu =  .7 #* explicit_scale # Initial atom damping coefficient	
-	const num_frict = 0.005  # Friction coefficient in Verlet with friction
-	#const G = 9.81 * 1.0
+	
+	const num_frict = 0.013 # Friction coefficient in Verlet with friction
+	const G = 9.81 * 1.0
 	
 end;
 
@@ -86,13 +87,14 @@ a_F = copy(a_x) # Array of sum of forces acting on each atom for all times
 # Array of atom "masses" (makes Klink as if masses were srpings in series, all of it divided by rest-length) at current topo iteration		
 a_M = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2), 0:natoms_r+1, 0:natoms_c+1)  
 	
-a_E = ones(Float64,natoms_r,natoms_c, Niter_ODE+1) # Array of atom "energy level" (sum abs(forces)) at current topo iteration
+# Array of atom "energy level" (sum abs(forces)) at current topo iteration
+a_E = ones(Float64,natoms_r,natoms_c, Niter_ODE+1) 
 	
 # Array with all indice offsets of neighbors, first 4 are same-axis, next 4 are diagonals on the same plane. First two elements are index offset and third is link rest length
+	
 offsets =  @SVector [
 		(-1,  0, Δa), (0, -1, Δa) , (0, 1, Δa),  (1, 0, Δa) , 
-		(-1, -1, Δa * √2), (-1, 1, Δa * √2) , (1, -1, Δa * √2), (1, 1, Δa * √2)]	
-	
+		(-1, -1, Δa * √2), (-1, 1, Δa * √2) , (1, -1, Δa * √2), (1, 1, Δa * √2)]		
 end;
 
 # ╔═╡ d7469640-9b09-4262-b738-29810bd19305
@@ -109,6 +111,9 @@ end
 
 return amplitude
 end
+
+# ╔═╡ 27272aec-bc13-4e15-aaa7-cb209846038e
+plot([modulate(i, 300 ) for i in 1:1000]);
 
 # ╔═╡ a1fc0684-5379-43d0-9dbd-b2efd1963e0f
 md"""
@@ -191,7 +196,7 @@ end
 # ╔═╡ 6960420d-bc50-4be3-9a26-2f43f14b903d
 function draw_animated_heatmap()
 	
-	@gif for Nit in 1:(Int64(floor(Niter_ODE/100))):10000 #Niter_ODE-1
+	@gif for Nit in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
 		
 	heatmap( log.(a_E[1:natoms_r, 1:natoms_c, Nit])
 			, aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
@@ -207,7 +212,7 @@ draw_animated_heatmap()
 function initialize_grid()
 
 # create grid in i,j and sweep through dimensions	
-for dim = 1:ndims , i = 0:natoms_r+1, j = 0:natoms_c+1  
+for i = 0:natoms_r+1 , dim = 1:ndims, j = 0:natoms_c+1 
 	a_x[dim, i,j, :] .= dim == 1 ? Float64(j * Δa) : Float64(i * Δa)
 end #for i,j
 
@@ -217,6 +222,7 @@ a_M[1:natoms_r, 1:natoms_c] .= initial_mass
 a_E .= 0.0   # Reset initial atom elastic energy
 #a_v .= 0.0  # Reset initial atom velocities
 a_F .= 0.0  # Reset initial atom forces
+
 	
 end
 
@@ -238,22 +244,22 @@ apply_boundary_conditions(n)
 # Apply external forces
 a_F[2,natoms_r,1,n] += - 2. * modulate(n, Niter_ODE*.25) 	
 		
-fr = num_frict * modulate(n, Niter_ODE*.3)
+fr = num_frict * modulate(n, Niter_ODE*.65)
 		
-@inbounds  for i = 1:natoms_r, j = 1:natoms_c, dim = 1:ndims # Traverse complete lattice
+@inbounds for j = 1:natoms_c, i = 1:natoms_r # Traverse complete lattice
 
 
 # Apply gravitational forces ("external", body force)
 #a_F[2,:,:,t] += - a_m[2,:,:, t] * G * amplitude # Use atom mass at time t							
 			
 # Compute elastic forces at node i,j		
-@inbounds  for offset in offsets # Traverse neighbors to get their elastic actions
+@inbounds for offset in offsets # Traverse neighbors to get their elastic actions
 			
 # Link stiffness: mass taken as source of stiffness, connected in series, normalized by rest length (= offset[3])
-# Note that atoms in ther margins "kill" the stiffness of the links				
-Klink = modulate(n, Niter_ODE*.3) * 30.0 *  1/ (1/a_M[i,j] + 1/a_M[i+offset[1],j+offset[2]] ) / offset[3]		
+# Note that atoms in the margins "kill" the stiffness of the links				
+Klink = modulate(n, Niter_ODE*.6) * 30.0 *  1/ (1/a_M[i,j] + 1/a_M[i+offset[1],j+offset[2]] ) / offset[3]		
 				
-# Relative position vector of adjacent atom at ind wrt current [i,j]				
+# Relative position vector of adjacent atom at offset wrt current [i,j]				
 rel_pos_vec = (a_x[:, i+offset[1],j+offset[2], n] - a_x[:, i,j, n])		
 rel_pos_direction = normalize(rel_pos_vec)
 				
@@ -261,10 +267,10 @@ rel_pos_direction = normalize(rel_pos_vec)
 force = (norm(rel_pos_vec) - offset[3]) * Klink # Extension x stiffness
 			
 # Build elastic force vector acting on atom i,j from atom at i,j+offset at time t
-a_F[:, i,j, n] += force * rel_pos_direction[:]	# Elastic force	
+a_F[:, i,j, n] .+= force * rel_pos_direction[:]	# Elastic force	
 
 # Update "elastic energy" status at atom i,j at time t
-a_E[i,j, n] += norm(a_F[:, i,j, n])			
+a_E[i,j, n] += abs(force) #norm(a_F[:, i,j, n])			
 
 			
 # Internal damping force			
@@ -277,15 +283,15 @@ end # for offset
 # Drag force at i,j 
 #a_F[1:ndims,:,:,n] .+= -mu*(norm(a_v[1:ndims,:,:,n]) .* a_v[1:ndims,:,:,n])			
 			
-# Verlet-Störmer integration with artificial friction damping			
-a_x[dim, i,j, n+1] = (2-fr) * a_x[dim, i,j, n] - (1-fr)* a_x[dim, i,j, n-1] + (1-fr)* a_F[dim, i,j, n] * Δt^2 / a_M[i,j] 	
+# Verlet integration with artificial friction damping			
+a_x[:, i,j, n+1] = (2-fr) * a_x[:, i,j, n] - (1-fr)* a_x[:, i,j, n-1] + a_F[:, i,j, n] * Δt^2 / a_M[i,j] 	
 	
 			
 		
 #a_v[dim, i,j, n+1] = (a_x[dim, i,j, n+1] - a_x[dim, i,j, n]) / (Δt)
 
 			
-end # next dim, j ,i
+end # next j ,i
 			
 	
 end	# next step
@@ -586,18 +592,19 @@ md"""
 #TableOfContents(aside=true)
 
 # ╔═╡ Cell order:
-# ╠═66ba9dc4-1d50-410a-acdd-850c8f27fd3d
+# ╟─66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
 # ╠═402abadb-d500-4801-8005-11d036f8f351
 # ╠═d7469640-9b09-4262-b738-29810bd19305
-# ╠═e3a15766-defe-469f-b992-b5357a7bfd8d
+# ╟─e3a15766-defe-469f-b992-b5357a7bfd8d
+# ╠═27272aec-bc13-4e15-aaa7-cb209846038e
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 # ╟─a1fc0684-5379-43d0-9dbd-b2efd1963e0f
 # ╠═a8011889-d844-4c98-bd3f-014e7eb58254
 # ╟─01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 # ╟─e084941c-447a-41bd-bf06-59dea45af028
-# ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╠═6960420d-bc50-4be3-9a26-2f43f14b903d
 # ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
