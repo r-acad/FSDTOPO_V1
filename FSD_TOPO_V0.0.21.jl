@@ -53,7 +53,7 @@ md"### Soft body section"
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
 		
-	explicit_scale = 10
+	explicit_scale = 30
 	const Δt = .1   # Time step
 	
 	natoms_c = 6 * explicit_scale # Number of columns of atoms in lattice
@@ -61,13 +61,13 @@ begin
 	
 	const Δa = 1.0    #  interatomic distance on same axis
 	
-	const Niter_ODE = 3500 # Number of iterations in solver
+	const Niter_ODE = 1000 # Number of iterations in solver
 		
 	initial_mass = 3. #*  explicit_scale  # Initial atom mass
 	
 	#const mu =  .7 #* explicit_scale # Initial atom damping coefficient	
 	
-	const num_frict = 0.013 # Friction coefficient in Verlet with friction
+	const num_frict = 0.01 # Friction coefficient in Verlet with friction
 	const G = 9.81 * 1.0
 	
 end;
@@ -95,6 +95,8 @@ a_E = ones(Float64,natoms_r,natoms_c, Niter_ODE+1)
 offsets =  @SVector [
 		(-1,  0, Δa), (0, -1, Δa) , (0, 1, Δa),  (1, 0, Δa) , 
 		(-1, -1, Δa * √2), (-1, 1, Δa * √2) , (1, -1, Δa * √2), (1, 1, Δa * √2)]		
+n_links = zeros(Int64,natoms_r,natoms_c) 
+
 end;
 
 # ╔═╡ d7469640-9b09-4262-b738-29810bd19305
@@ -174,7 +176,7 @@ function draw_animation()
 plot(a_x[1,1:natoms_r, 1:natoms_c, t][:], 
 	 a_x[2, 1:natoms_r, 1:natoms_c, t][:], 
 	 color = [:black :orange], line = (1), 
-	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
+	 marker = ([:hex :d], 6, 0.01, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
 	zcolor = a_E[1:natoms_r, 1:natoms_c, t][:]  )					
 	end # for time step
 	
@@ -196,7 +198,7 @@ end
 # ╔═╡ 6960420d-bc50-4be3-9a26-2f43f14b903d
 function draw_animated_heatmap()
 	
-	@gif for Nit in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
+	@gif for Nit in 1:(Int64(floor(Niter_ODE/500))):Niter_ODE-1
 		
 	heatmap( log.(a_E[1:natoms_r, 1:natoms_c, Nit])
 			, aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
@@ -223,6 +225,14 @@ a_E .= 0.0   # Reset initial atom elastic energy
 #a_v .= 0.0  # Reset initial atom velocities
 a_F .= 0.0  # Reset initial atom forces
 
+# Calculate number of active links on i,j node in order to normalize energy	
+@inbounds for j = 1:natoms_c, i = 1:natoms_r
+@inbounds for offset in offsets # Traverse complete lattice		
+	n_links[i,j] += Int(a_M[i+offset[1],j+offset[2]] > 0)
+end	# offset
+		
+		
+end #j, i
 	
 end
 
@@ -244,7 +254,7 @@ apply_boundary_conditions(n)
 # Apply external forces
 a_F[2,natoms_r,1,n] += - 2. * modulate(n, Niter_ODE*.25) 	
 		
-fr = num_frict * modulate(n, Niter_ODE*.65)
+fr = num_frict * modulate(n, Niter_ODE*.95)
 		
 @inbounds for j = 1:natoms_c, i = 1:natoms_r # Traverse complete lattice
 
@@ -257,7 +267,7 @@ fr = num_frict * modulate(n, Niter_ODE*.65)
 			
 # Link stiffness: mass taken as source of stiffness, connected in series, normalized by rest length (= offset[3])
 # Note that atoms in the margins "kill" the stiffness of the links				
-Klink = modulate(n, Niter_ODE*.6) * 30.0 *  1/ (1/a_M[i,j] + 1/a_M[i+offset[1],j+offset[2]] ) / offset[3]		
+Klink = modulate(n, Niter_ODE*.7) * 30.0 *  1/ (1/a_M[i,j] + 1/a_M[i+offset[1],j+offset[2]] ) / offset[3]		
 				
 # Relative position vector of adjacent atom at offset wrt current [i,j]				
 rel_pos_vec = (a_x[:, i+offset[1],j+offset[2], n] - a_x[:, i,j, n])		
@@ -270,7 +280,7 @@ force = (norm(rel_pos_vec) - offset[3]) * Klink # Extension x stiffness
 a_F[:, i,j, n] .+= force * rel_pos_direction[:]	# Elastic force	
 
 # Update "elastic energy" status at atom i,j at time t
-a_E[i,j, n] += abs(force) #norm(a_F[:, i,j, n])			
+a_E[i,j, n] += abs(force) / n_links[i,j] #norm(a_F[:, i,j, n])			
 
 			
 # Internal damping force			
@@ -604,30 +614,30 @@ md"""
 # ╠═a8011889-d844-4c98-bd3f-014e7eb58254
 # ╟─01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 # ╟─e084941c-447a-41bd-bf06-59dea45af028
-# ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╠═6960420d-bc50-4be3-9a26-2f43f14b903d
-# ╠═cea5e286-4bc1-457f-b300-fdff62047cc4
+# ╟─cea5e286-4bc1-457f-b300-fdff62047cc4
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
-# ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
+# ╟─6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
-# ╠═f60365a0-920d-11eb-336a-bf5953215934
+# ╟─f60365a0-920d-11eb-336a-bf5953215934
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
 # ╠═2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
-# ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
+# ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
-# ╠═a8c96d92-aee1-4a91-baf0-2a585c2fa51f
-# ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
+# ╟─a8c96d92-aee1-4a91-baf0-2a585c2fa51f
+# ╟─2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
-# ╠═c652e5c0-9207-11eb-3310-ddef16cdb1ac
+# ╟─c652e5c0-9207-11eb-3310-ddef16cdb1ac
 # ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
-# ╠═c58a7360-920c-11eb-2a15-bda7ed075812
+# ╟─c58a7360-920c-11eb-2a15-bda7ed075812
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╟─fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─13b32a20-9206-11eb-3af7-0feea278594c
