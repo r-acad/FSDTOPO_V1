@@ -36,15 +36,10 @@ md"""
 Version 0.0.14 It works with Störmer solution
 Stable version 2021 04 26
 Next versions will try to implement RK5
-
 Version 0.0.15. Implementation of MBB problem. Not yet converged, best integration method is Verlet-Störmer
-
 Version 0.0.16. Verlet with velocity and simplification of matrices to remove time dependency of mass, stiffness etc (these will be updated in place when the topo algo is implemented)
-
 Version 0.0.17. Change to Mass as the source of elastic force, remove broadcasting and go back to nested loops
-
-v0.0.21 Optimization of for loops and static array of offsets. Implementation of Threaded loops
-
+v0.0.21 Optimization of for loops and static array of offsets
 """
 
 # ╔═╡ 4da7c9e7-6997-49a1-92bc-462d247f4e12
@@ -64,13 +59,13 @@ begin
 	
 	const Δa = 1.0    #  interatomic distance on same axis
 	
-	const Niter_ODE = 1_000 # Number of iterations in solver
+	const Niter_ODE = 200 # Number of iterations in solver
 		
 	const initial_mass = 3. # Initial atom mass
 	
 	#const mu =  .7 # Initial atom viscous damping coefficient	
 	
-	const num_frict = 0.001 # Friction coefficient in Verlet with friction
+	const num_frict = 0.05 # Friction coefficient in Verlet with friction
 	
 	const G = 9.81 # Acceleration of gravity
 	
@@ -95,27 +90,18 @@ a_M = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2), 0:natoms_r+1, 0:natoms_c
 a_E = ones(Float64,natoms_r,natoms_c, Niter_ODE+1) 
 	
 # Array with indice offsets of neighbors, first 4 are same-axis, next 4 are diagonals on the same plane. First two elements are index offset and third is link rest length
-
-"""	
-neighbors =  @SVector [
+	
+offsets =  @SVector [
 		(-1,  0, Δa), (0, -1, Δa) , (0, 1, Δa),  (1, 0, Δa) , 
 		(-1, -1, Δa * √2), (-1, 1, Δa * √2) , (1, -1, Δa * √2), (1, 1, Δa * √2)]
-"""
-	
-neighbors =  @SVector [
-		(-1,  0), (0, -1) , (0, 1),  (1, 0) , 
-		(-1, -1), (-1, 1) , (1, -1), (1, 1)]
 
-
-	
-	
-# Array with nominal link stiffness between each node and its neighbors for a given state of the mass matrix (at each topo iteration)	
-Klink = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2, length(neighbors), length(neighbors)), 0:natoms_r+1, 0:natoms_c+1, 1:length(neighbors), 1:length(neighbors))
-	
 # Array holding the number of elastic connections of an atom with neighbours (frame elements are considered non-active). Used for normalization of "energy levels"
 n_links = zeros(Int64,natoms_r,natoms_c) 
 
 end;
+
+# ╔═╡ 3b0456ff-8f06-43b0-952e-bb2b42dbc0eb
+n_links
 
 # ╔═╡ 8a5761b3-9554-4e48-bb4c-60393baadb3a
 function initialize_grid()
@@ -136,23 +122,36 @@ a_F .= 0.0  # Reset initial atom forces
 @inbounds Threads.@threads for j = 1:natoms_c
 	@inbounds Threads.@threads for i = 1:natoms_r
 
-		@inbounds Threads.@threads for neigh in 1:length(neighbors) # Check neighbors		
-		n_links[i,j] += Int(a_M[i+neighbors[neigh][1],j+neighbors[neigh][2]] > 0)
-				
-		Klink[i,j, neigh] = 30.0 / (1/a_M[i,j] + 1/a_M[i+neighbors[neigh][1], j+neighbors[neigh][2]] ) / neighbors[neigh][3] # link stiffness calculated as springs in series with individual stiffness corresponding to the mass of the i,j node and its corresponding neighbor, corredted by its rest length (= neigh[3])
-				
-		end	# next neighbour			
-	end	# next i	
-end # next j
+		@inbounds Threads.@threads for offset in offsets # Check neighbors		
+			n_links[i,j] += Int(a_M[i+offset[1],j+offset[2]] > 0)
+
+		end	# offset			
+	end	# i	
+end # j
 	
 end;
+
+# ╔═╡ e3a15766-defe-469f-b992-b5357a7bfd8d
+@inline function modulate0(n, fulliter)
+	
+if n < fulliter	
+amplitude = 1-cos(n/fulliter * pi/2)
+else
+amplitude = 1		
+end
+
+return amplitude
+end
 
 # ╔═╡ d37fd3f6-49cb-4738-9536-21ac6212c749
 @inline function modulate(n, fulliter)
 
-amplitude = min(n/fulliter, 1)
+amplitude = max(n/fulliter, 1)
 		
 end
+
+# ╔═╡ 7c8e9b25-c999-460a-8f90-d82b4cf6ed47
+
 
 # ╔═╡ 01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 @inline function apply_boundary_conditions(t)
@@ -176,6 +175,9 @@ plot([ a_x[2, 1,5, 1:end]     ])
 md"""
 Nit = $(@bind Nit Slider(1:Niter_ODE, show_value=true, default=1))
 """
+
+# ╔═╡ a8011889-d844-4c98-bd3f-014e7eb58254
+#draw_animated_heatmap()
 
 # ╔═╡ a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 begin
@@ -201,9 +203,6 @@ function draw_animated_heatmap()
 	end
 	
 end
-
-# ╔═╡ a8011889-d844-4c98-bd3f-014e7eb58254
-draw_animated_heatmap()
 
 # ╔═╡ 30d5a924-7bcd-4eee-91fe-7b10004a4139
 function draw_animation()
@@ -244,22 +243,22 @@ a_F[2,natoms_r,1,n] += - 1. * modulate(n, Niter_ODE*.2)
 # Apply gravitational forces ("external", body force)
 #a_F[2,:,:,t] += - a_m[2,:,:, t] * G * amplitude # Use atom mass at time t								
 # Compute elastic forces at node i,j		
-@inbounds Threads.@threads for neigh in 1:length(neighbors) # Traverse neighbors to get their elastic actions
+@inbounds Threads.@threads for offset in offsets # Traverse neighbors to get their elastic actions
 			
-# Stiffness of the link modulated at each integration iteration
-klink = modulate(n, Niter_ODE*.7) * Klink[i,j, neigh]	
+# Link stiffness: mass taken as source of stiffness, connected in series, normalized by rest length (= offset[3]). Note that atoms in the margins "kill" the stiffness of the links as they have 0 mass
+Klink = modulate(n, Niter_ODE*.7) * 30.0 *  1/ (1/a_M[i,j] + 1/a_M[i+offset[1],j+offset[2]] ) / offset[3]		
 				
 # Relative position vector of adjacent atom at offset wrt current [i,j]				
-rel_pos_vec = (a_x[:, i+neighbors[neigh][1],j+neighbors[neigh][2], n] - a_x[:, i,j, n])		
+rel_pos_vec = (a_x[:, i+offset[1],j+offset[2], n] - a_x[:, i,j, n])		
 rel_pos_direction = normalize(rel_pos_vec)
 				
 # Elastic force (scalar) between i,j atom and atom at offset
-force = (norm(rel_pos_vec) - neighbors[neigh][3]) * klink # Force = Extension * stiffness
+force = (norm(rel_pos_vec) - offset[3]) * Klink # Force = Extension * stiffness
 			
 # Build elastic force vector acting on atom i,j from atom at i,j+offset at time t
 a_F[:, i,j, n] .+= force * rel_pos_direction[:]	# Elastic force vector
 
-# Accumulate "elastic energy" status of atom i,j at this iteration adding forces from  neighbors 
+# Update "elastic energy" status at atom i,j at time t
 a_E[i,j, n] += abs(force) / n_links[i,j] #norm(a_F[:, i,j, n])			
 
 			
@@ -274,6 +273,7 @@ end # for offset
 #a_F[1:ndims,:,:,n] .+= -mu*(norm(a_v[1:ndims,:,:,n]) .* a_v[1:ndims,:,:,n])			
 			
 # Verlet integration with artificial friction damping			
+				
 fr = num_frict * modulate(n, Niter_ODE*.95) # Calculate friction coeff. at this iter_n
 				
 a_x[:, i,j, n+1] = (2-fr) * a_x[:, i,j, n] - (1-fr)* a_x[:, i,j, n-1] + a_F[:, i,j, n] * Δt^2 / a_M[i,j] 	
@@ -298,11 +298,8 @@ md"""
 ### Version  v 0.0.10 OK
 - 0.0.8 Back to original formulation in 88 lines after attempt to reorder elements in v 0.0.6
 - 0.0.8 OK works in obtaining a meaningful internal loads field
-
 - 0.0.9 Clean up of 0.0.8OK   5 APR 21. It works with canonical problem
-
 - 0.0.10 Added animation and additional clean-up. GAUSS FILTER ADDED, IT WORKS FINE
-
 """
 
 # ╔═╡ 965946ba-8217-4202-8870-73d89c0c7340
@@ -588,16 +585,19 @@ md"""
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
 # ╠═402abadb-d500-4801-8005-11d036f8f351
+# ╠═3b0456ff-8f06-43b0-952e-bb2b42dbc0eb
 # ╠═8a5761b3-9554-4e48-bb4c-60393baadb3a
-# ╟─d37fd3f6-49cb-4738-9536-21ac6212c749
+# ╠═e3a15766-defe-469f-b992-b5357a7bfd8d
+# ╠═d37fd3f6-49cb-4738-9536-21ac6212c749
+# ╠═7c8e9b25-c999-460a-8f90-d82b4cf6ed47
 # ╟─01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
 # ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╟─a1fc0684-5379-43d0-9dbd-b2efd1963e0f
 # ╠═a8011889-d844-4c98-bd3f-014e7eb58254
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
-# ╟─6960420d-bc50-4be3-9a26-2f43f14b903d
-# ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╠═6960420d-bc50-4be3-9a26-2f43f14b903d
+# ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
@@ -607,17 +607,17 @@ md"""
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
-# ╟─2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
-# ╟─4aba92de-9212-11eb-2089-073a71342bb0
-# ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
+# ╠═2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
+# ╠═4aba92de-9212-11eb-2089-073a71342bb0
+# ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
-# ╟─a8c96d92-aee1-4a91-baf0-2a585c2fa51f
+# ╠═a8c96d92-aee1-4a91-baf0-2a585c2fa51f
 # ╟─2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╠═c652e5c0-9207-11eb-3310-ddef16cdb1ac
-# ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
-# ╟─c58a7360-920c-11eb-2a15-bda7ed075812
+# ╠═c1711000-920b-11eb-14ba-eb5ce08f3941
+# ╠═c58a7360-920c-11eb-2a15-bda7ed075812
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╟─fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─13b32a20-9206-11eb-3af7-0feea278594c

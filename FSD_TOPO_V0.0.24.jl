@@ -45,6 +45,11 @@ Version 0.0.17. Change to Mass as the source of elastic force, remove broadcasti
 
 v0.0.21 Optimization of for loops and static array of offsets. Implementation of Threaded loops
 
+V0.0.22 to 0.0.23 failed tests
+
+v0.0.24 WORKS FULLY. BASELINE
+
+
 """
 
 # ╔═╡ 4da7c9e7-6997-49a1-92bc-462d247f4e12
@@ -94,23 +99,13 @@ a_M = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2), 0:natoms_r+1, 0:natoms_c
 # Array of atom "energy level" (sum abs(forces)) at current topo iteration
 a_E = ones(Float64,natoms_r,natoms_c, Niter_ODE+1) 
 	
-# Array with indice offsets of neighbors, first 4 are same-axis, next 4 are diagonals on the same plane. First two elements are index offset and third is link rest length
-
-"""	
+# Array with indice offsets of neighbors, first 4 are same-axis, next 4 are diagonals on the same plane. First two elements are index offset and third is link rest length	
 neighbors =  @SVector [
 		(-1,  0, Δa), (0, -1, Δa) , (0, 1, Δa),  (1, 0, Δa) , 
 		(-1, -1, Δa * √2), (-1, 1, Δa * √2) , (1, -1, Δa * √2), (1, 1, Δa * √2)]
-"""
-	
-neighbors =  @SVector [
-		(-1,  0), (0, -1) , (0, 1),  (1, 0) , 
-		(-1, -1), (-1, 1) , (1, -1), (1, 1)]
 
-
-	
-	
 # Array with nominal link stiffness between each node and its neighbors for a given state of the mass matrix (at each topo iteration)	
-Klink = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2, length(neighbors), length(neighbors)), 0:natoms_r+1, 0:natoms_c+1, 1:length(neighbors), 1:length(neighbors))
+Klink = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2, length(neighbors)), 0:natoms_r+1, 0:natoms_c+1, 1:length(neighbors))
 	
 # Array holding the number of elastic connections of an atom with neighbours (frame elements are considered non-active). Used for normalization of "energy levels"
 n_links = zeros(Int64,natoms_r,natoms_c) 
@@ -496,9 +491,9 @@ for iter in 1:niter
 
 			
 			
-	#penalty = min(1 + iter / full_penalty_iter, max_penalty) # Calculate penalty at this iteration
+	penalty = min(1 + iter / full_penalty_iter, max_penalty) # Calculate penalty at this iteration
 			
-			penalty = 5
+
 			
 	# Filter loop					
 
@@ -583,7 +578,7 @@ md"""
 #TableOfContents(aside=true)
 
 # ╔═╡ Cell order:
-# ╟─66ba9dc4-1d50-410a-acdd-850c8f27fd3d
+# ╠═66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 # ╠═4da7c9e7-6997-49a1-92bc-462d247f4e12
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
