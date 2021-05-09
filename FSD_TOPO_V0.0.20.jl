@@ -53,7 +53,7 @@ md"### Soft body section"
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
 begin
 		
-	explicit_scale = 2
+	explicit_scale = 4
 	const Δt = .1   # Time step
 	
 	natoms_c = 6 * explicit_scale # Number of columns of atoms in lattice
