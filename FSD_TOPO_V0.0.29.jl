@@ -472,27 +472,8 @@ md"""
 #### Call FSDTOPO with Niter
 """
 
-# ╔═╡ b9ec0cbf-f9a2-4980-b7cd-1ecda0566631
-@inline function convolution3x3(matr, kern)
+# ╔═╡ 3357609d-48f6-40c0-a86d-4ff5ba56c223
 
-# matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr are = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS <0)	
-	
-canvas = OffsetArray(zeros(Float64, 1:size(matr,1)+2, 1:size(matr,2)+2), 0:size(matr,1)+1,0:size(matr,2)+1)
-	
-canvas[1:size(matr,1), 1:size(matr,2)] = matr
-
-# Return the sum the product of a subarray centered in the cartesian indices corresponding to i, of the interior matrix, and the kernel elements, centered in CartInd i. Then .divide by the sum of the weights multiplied by a 1 or a 0 depending on whether the base element is >0 or not. Note: the lines below are a single expression
-
-	"""	
-[sum(canvas[i.+CartesianIndices((-1:1, -1:1))].*kern) for i in CartesianIndices(matr)]./ [sum((canvas[i.+CartesianIndices((-1:1,-1:1))] .> 0.0).*kern) for i in CartesianIndices(matr)]	
-	"""
-
-[sum( canvas[i.+CartesianIndices((-1:1, -1:1))] .* kern)	/ 
- sum((canvas[i.+CartesianIndices((-1:1, -1:1))] .> 0.0) .* kern) 
-		for i in CartesianIndices(matr)]
-	
-
-end
 
 # ╔═╡ 2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
 md"""
@@ -506,6 +487,22 @@ md""" ### FE SOLVER FUNCTIONS  """
 md"""
 ### AUXILIARY FUNCTIONS and MATRICES
 """
+
+# ╔═╡ b9ec0cbf-f9a2-4980-b7cd-1ecda0566631
+@inline function convolution3x3(matr, kern)
+
+# matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr are = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS > 0)	
+	
+canvas = OffsetArray(zeros(Float64, 1:size(matr,1)+2, 1:size(matr,2)+2), 0:size(matr,1)+1,0:size(matr,2)+1)
+	
+canvas[1:size(matr,1), 1:size(matr,2)] = matr
+
+# Return the sum the product of a subarray centered in the cartesian indices corresponding to i, of the interior matrix, and the kernel elements, centered in CartInd i. Then .divide by the sum of the weights multiplied by a 1 or a 0 depending on whether the base element is >0 or not. Note: the lines below are a single expression
+
+[sum( canvas[i.+CartesianIndices((-1:1, -1:1))] .* kern)	/ 
+ sum((canvas[i.+CartesianIndices((-1:1, -1:1))] .> 0.0) .* kern) 
+		for i in CartesianIndices(matr)]
+end
 
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 begin
@@ -579,22 +576,19 @@ for iter in 1:niter
 t_iter .*= SOLVE_INTERNAL_LOADS(t_iter) / sigma_all 
 
 # Limit thickness to maximum			
- t_iter = [min(nt, max_all_t) for nt in t_iter] 
+t_iter .= [min(nt, max_all_t) for nt in t_iter] 
 		
 # Calculate penalty at this iteration			
 penalty = min(1 + iter / full_penalty_iter, max_penalty) 
 			
 # apply spatial filter a decreasing number of times function of the iteration number, but proportional to the scale, in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)	
-		
-for gauss in 1:max(0,(ceil(scale*(iter-.5*Niter)/(2*-.5*Niter)))) 
+for gauss in 1:max(0,(ceil(scale*(iter-.7*Niter)/(2*-.7*Niter)))) 
 	t_iter .= convolution3x3(t_iter, Gauss_3x3_kernel)					
 end # for gauss								
 
-tq = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t_iter]
-
-t_iter = copy(tq)  # ??? WHY IS THIS NECESSARY? OTHERWISE HEATMAP DISPLAYS A THICKNESS MAP WITH A MAXIMUM THICKNESS LARGER THAN THE SPECIFIED BOUND
+t_iter .= [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t_iter]
 			
-push!(t_res, tq)			
+push!(t_res, copy(t_iter))			
 	
 end	# for topo iter
 		
@@ -672,7 +666,7 @@ md"""
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═16547ee0-3f3b-4324-b761-14a5d51ccf24
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
-# ╟─b9ec0cbf-f9a2-4980-b7cd-1ecda0566631
+# ╠═3357609d-48f6-40c0-a86d-4ff5ba56c223
 # ╟─2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
 # ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
@@ -680,6 +674,7 @@ md"""
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
 # ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
+# ╠═b9ec0cbf-f9a2-4980-b7cd-1ecda0566631
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╠═0342ef5f-484d-4ed7-8260-b2b1330fead0
 # ╠═c652e5c0-9207-11eb-3310-ddef16cdb1ac
