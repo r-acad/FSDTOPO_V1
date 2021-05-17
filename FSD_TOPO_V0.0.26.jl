@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.14.4
+# v0.14.5
 
 using Markdown
 using InteractiveUtils
@@ -15,6 +15,7 @@ end
 
 # ╔═╡ fc7e00a0-9205-11eb-039c-23469b96de19
 begin
+	"""
 	import Pkg
 	Pkg.activate(mktempdir())
 	Pkg.add([
@@ -23,7 +24,7 @@ begin
 			Pkg.PackageSpec(name="SparseArrays"),
 			Pkg.PackageSpec(name="StaticArrays")
 			])
-
+"""
 	using PlutoUI
 	using Plots, OffsetArrays, SparseArrays
 	using StaticArrays
@@ -49,6 +50,10 @@ V0.0.22 to 0.0.23 failed tests
 
 v0.0.24 WORKS FULLY. BASELINE
 
+v0.0.25 Start of the implementation of nonlinear FSDTOPO
+
+v0.0.26 Simplification of nolin code (remove offsetArrays and use static arrays as much as possible)
+
 
 """
 
@@ -56,54 +61,50 @@ v0.0.24 WORKS FULLY. BASELINE
 Threads.nthreads()
 
 # ╔═╡ 454494b5-aca5-43d9-8f48-d5ce14fbd5a9
-md"### Soft body section"
+md"### Non-Linear Solver"
 
 # ╔═╡ 10ececaa-5ac8-4870-bcbb-210ffec09515
-begin
+begin # SET CONSTANTS
 		
-	const explicit_scale = 4 # Scale multiplier on basic lattice dimensions
-	const Δt = .1   # Time step for integration
+	const explicit_scale = 2 # Scale multiplier on basic lattice dimensions
+	const Δt = .01   # Time step for integration
 	
 	const natoms_c = 6 * explicit_scale # Number of columns of atoms in lattice
 	const natoms_r = 2 * explicit_scale # Number of rows of atoms in lattice
 	
 	const Δa = 1.0    #  interatomic distance on same axis
 	
-	const Niter_ODE = 500 # Number of iterations in solver
+	const Niter_ODE = 8500 # Number of iterations in solver
 		
 	const initial_mass = 3. # Initial atom mass
 	
 	#const mu =  .7 # Initial atom viscous damping coefficient	
 	
-	const num_frict = 0.001 # Friction coefficient in Verlet with friction
+	const num_frict = 0.005 # Friction coefficient in Verlet with friction
 	
 	const G = 9.81 # Acceleration of gravity
 	
+	const sigma_all_nolin = 0.3
+	const max_all_t_nolin = 3.0
+	
 end;
 
-# ╔═╡ 05862b1a-bf4e-4d1f-a99f-0a983cae655d
-GC.gc()
-
-# ╔═╡ 7e268153-55d5-4419-87ab-11b764628502
-
-
 # ╔═╡ 402abadb-d500-4801-8005-11d036f8f351
-begin
+begin # ALLOCATE ARRAYS
 
 const ndims = 2 # Number of dimensions of the lattice
 	
-# Array of atom positions at all times, initialized to 0 and used as template for other matrices. The offset array is to provide a "frame" of one element on each margin in order to facilitate the convolution operations
-a_x = OffsetArray(zeros(Float64,ndims,natoms_r+2,natoms_c+2,Niter_ODE+1),
-	  1:ndims, 0:natoms_r+1, 0:natoms_c+1, 0:Niter_ODE) 
+# Array of atom positions at all times, a "frame" of one element on each margin is used in order to facilitate the convolution operations
+a_x = zeros(Float64,ndims,natoms_r+2,natoms_c+2,Niter_ODE+1) 
 	
 #a_v = copy(a_x)  # Array of velocities of all atoms for all times
-a_F = copy(a_x) # Array of sum of forces acting on each atom for all times
+a_F = zeros(Float64,ndims,natoms_r+2,natoms_c+2,Niter_ODE+1) # Array of sum of forces acting on each atom for all times
 
 # Array of atom "masses" (stiffness of the link between atoms calculated as if masses were springs in series, and then divided by rest-length) at current topo iteration	
-a_M = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2), 0:natoms_r+1, 0:natoms_c+1)  
+a_M = zeros(Float64,natoms_r+2,natoms_c+2)
 	
 # Array of atom "energy level" (sum abs(forces)) at current topo iteration
-a_E = ones(Float64,natoms_r,natoms_c, Niter_ODE+1) 
+a_E = ones(Float64,natoms_r+2,natoms_c+2, Niter_ODE+1) 
 	
 # Array with indice offsets of neighbors, first 4 are same-axis, next 4 are diagonals on the same plane. First two elements are index offset and third is link rest length	
 neighbors =  @SVector [
@@ -111,37 +112,33 @@ neighbors =  @SVector [
 		(-1, -1, Δa * √2), (-1, 1, Δa * √2) , (1, -1, Δa * √2), (1, 1, Δa * √2)]
 
 # Array with nominal link stiffness between each node and its neighbors for a given state of the mass matrix (at each topo iteration)	
-Klink = OffsetArray(zeros(Float64,natoms_r+2,natoms_c+2, length(neighbors)), 0:natoms_r+1, 0:natoms_c+1, 1:length(neighbors))
-	
-# Array holding the number of elastic connections of an atom with neighbours (frame elements are considered non-active). Used for normalization of "energy levels"
-n_links = zeros(Int64,natoms_r,natoms_c) 
+Klink = zeros(Float64,natoms_r+2,natoms_c+2, length(neighbors))	
+		
+# Array holding the number of active elastic connections of an atom with neighbors (frame elements are considered non-active). Used for normalization of "energy levels"
+n_links = @SArray zeros(Int64,natoms_r+2,natoms_c+2) 
 
 end;
 
-# ╔═╡ 324383c1-590f-4934-8be2-8d5a28ede8c6
-neighbors
-
-
 # ╔═╡ 8a5761b3-9554-4e48-bb4c-60393baadb3a
-function initialize_grid()
+function initialize_grid() # INITIALIZE ARRAYS
 
 # create grid in i,j and sweep through dimensions	
-for j = 0:natoms_c+1, i = 0:natoms_r+1 , dim = 1:ndims
-	a_x[dim, i,j, :] .= dim == 1 ? Float64(j * Δa) : Float64(i * Δa)
+for j = 1:natoms_c+2, i = 1:natoms_r+2 , dim = 1:ndims
+	a_x[dim, i,j, :] .= dim == 1 ? Float64((j-2) * Δa) : Float64((i-2) * Δa)
 end #for i,j
 
 # set non-zero masses only in the grid, let intensities of canvas frame = 0	
-a_M[1:natoms_r, 1:natoms_c] .= initial_mass	
+a_M[2:natoms_r+1, 2:natoms_c+1] .= initial_mass	
 
 a_E .= 0.0   # Reset initial atom elastic energy
 #a_v .= 0.0  # Reset initial atom velocities
 a_F .= 0.0  # Reset initial atom forces
 
 # Calculate number of active links on i,j node in order to normalize energy	
-@inbounds Threads.@threads for j = 1:natoms_c
-	@inbounds Threads.@threads for i = 1:natoms_r
-
+@inbounds Threads.@threads for j = 2:natoms_c+1
+	@inbounds Threads.@threads for i = 2:natoms_r+1
 		@inbounds Threads.@threads for neigh in 1:length(neighbors) # Check neighbors		
+		# Calculate number of active links on current atom
 		n_links[i,j] += Int(a_M[i+neighbors[neigh][1],j+neighbors[neigh][2]] > 0)
 				
 		Klink[i,j, neigh] = 30.0 / (1/a_M[i,j] + 1/a_M[i+neighbors[neigh][1], j+neighbors[neigh][2]] ) / neighbors[neigh][3] # link stiffness calculated as springs in series with individual stiffness corresponding to the mass of the i,j node and its corresponding neighbor, corredted by its rest length (= neigh[3])
@@ -168,86 +165,37 @@ a_x[1:ndims,1,1, t] .= 1.0
 a_x[1:ndims,1,natoms_c, t] .= (Float64(natoms_c) , 1.0)
 """
 
-a_x[1,:,1, t] .= 1.0 # Simmetry condition
+a_x[1,:,2, t] .= 0.0 # Simmetry condition
 	
-a_x[2,1,natoms_c, t] = 1.0	# simple support in y on the right lower corner
+a_x[2,2,natoms_c+1, t] = 0.0	# simple support in y on the right lower corner
 	
 end
 
-# ╔═╡ d7469640-9b09-4262-b738-29810bd19305
-plot([ a_x[2, 1,5, 1:end]     ])
-
-# ╔═╡ a1fc0684-5379-43d0-9dbd-b2efd1963e0f
+# ╔═╡ 361c11cc-94da-4e9c-80df-92ee548d2146
 md"""
-Nit = $(@bind Nit Slider(1:Niter_ODE, show_value=true, default=1))
+N1 = $(@bind N1 Slider(1:35, show_value=true, default=1))
 """
 
-# ╔═╡ a755dbab-6ac9-4a9e-a397-c47efce4d2f7
-begin
-function draw_scatter()	
-	
-plot(a_x[1,1:natoms_r, 1:natoms_c, end-1][:], 
-	 a_x[2, 1:natoms_r, 1:natoms_c, end-1][:], 
-	 color = [:black :orange], line = (1), 
-	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
-			zcolor = log.(a_E[1:natoms_r, 1:natoms_c, end-1][:])  )		
-		
-end
-end	
+# ╔═╡ 27cf5226-589d-471f-91b8-7daf3b8694cd
+heatmap(tres_nolin[N1], aspect_ratio = 1)
 
-# ╔═╡ 6960420d-bc50-4be3-9a26-2f43f14b903d
-function draw_animated_heatmap()
+# ╔═╡ 7aefbb01-1e15-4aa1-9a49-b182e6723764
+function solve_nolin()
 	
-	@gif for Nit in 1:(Int64(floor(Niter_ODE/500))):Niter_ODE-1
-		
-	heatmap( log.(a_E[1:natoms_r, 1:natoms_c, Nit])
-			, aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
-	
-	end
-	
-end
-
-# ╔═╡ a8011889-d844-4c98-bd3f-014e7eb58254
-draw_animated_heatmap()
-
-# ╔═╡ 30d5a924-7bcd-4eee-91fe-7b10004a4139
-function draw_animation()
-	
-@gif for t in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
-		
-#@gif for t in 1:Niter_ODE-1		
-
-plot(a_x[1,1:natoms_r, 1:natoms_c, t][:], 
-	 a_x[2, 1:natoms_r, 1:natoms_c, t][:], 
-	 color = [:black :orange], line = (1), 
-	 marker = ([:hex :d], 6, 0.5, Plots.stroke(.5, :green)), leg = false, aspect_ratio = 1, 
-	zcolor = a_E[1:natoms_r, 1:natoms_c, t][:]  )					
-	end # for time step
-	
-end
-
-# ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
-begin
-
-# INTEGRATE EQUATIONS OF MOTION AND SET BOUNDARY CONDITIONS	
-	
-initialize_grid() # Reset all matrices
-	
-	
-@inbounds  for n in 1:Niter_ODE-1  # Time step	
+@inbounds  for n in 2:Niter_ODE-1  # Time step	
 
 apply_boundary_conditions(n) # at each iteration
 
 	
 # Apply external forces on lattice
-a_F[2,natoms_r,1,n] += - 1. * modulate(n, Niter_ODE*.2) 	
+a_F[2,natoms_r+1,2,n] += - 1. * modulate(n, Niter_ODE*.2) 	
 
 		
-@inbounds Threads.@threads for j = 1:natoms_c # Traverse colums after rows
-	      Threads.@threads for i = 1:natoms_r # Traverse rows first
+@inbounds Threads.@threads for j = 2:natoms_c+1 # Traverse colums after rows
+	      Threads.@threads for i = 2:natoms_r+1 # Traverse rows first
 
 # Apply gravitational forces ("external", body force)
-#a_F[2,:,:,t] += - a_m[2,:,:, t] * G * amplitude # Use atom mass at time t								
+#a_F[2,:,:,n] += - a_M[:,:] * G /100.0  # Use atom mass at time t								
 # Compute elastic forces at node i,j		
 @inbounds Threads.@threads for neigh in 1:length(neighbors) # Traverse neighbors to get their elastic actions
 			
@@ -256,7 +204,7 @@ klink = modulate(n, Niter_ODE*.7) * Klink[i,j, neigh]
 				
 # Relative position vector of adjacent atom at offset wrt current [i,j]				
 rel_pos_vec = (a_x[:, i+neighbors[neigh][1],j+neighbors[neigh][2], n] - a_x[:, i,j, n])		
-rel_pos_direction = normalize(rel_pos_vec)
+rel_pos_direction = normalize(rel_pos_vec) # Unit vector from Atom to neighbor
 				
 # Elastic force (scalar) between i,j atom and atom at offset
 force = (norm(rel_pos_vec) - neighbors[neigh][3]) * klink # Force = Extension * stiffness
@@ -281,14 +229,99 @@ end # for offset
 # Verlet integration with artificial friction damping			
 fr = num_frict * modulate(n, Niter_ODE*.95) # Calculate friction coeff. at this iter_n
 				
-a_x[:, i,j, n+1] = (2-fr) * a_x[:, i,j, n] - (1-fr)* a_x[:, i,j, n-1] + a_F[:, i,j, n] * Δt^2 / a_M[i,j] 	
-	
+a_x[:, i,j, n+1] = (2-fr) * a_x[:, i,j, n] - (1-fr)* a_x[:, i,j, n-1] + a_F[:, i,j, n] * Δt^2 / a_M[i,j] 		
+				
 #a_v[dim, i,j, n+1] = (a_x[dim, i,j, n+1] - a_x[dim, i,j, n]) / (Δt)
 		
 end # next j
 end # next i
 				
-end	# next step
+end	# next step	
+
+a_E[:,:, end-2]	
+	
+end	
+
+# ╔═╡ f670fc69-09e1-4697-88ac-62e3a49ca906
+a_E
+
+# ╔═╡ 8914feb6-bf7c-46a7-9d6c-7c54538802f5
+md"""
+N2 = $(@bind N2 Slider(1:35, show_value=true, default=1))
+"""
+
+# ╔═╡ fd6b2897-ff79-4ea3-b662-3eca9b8755d1
+heatmap(a_E[:,:, N2], aspect_ratio = 1)
+
+# ╔═╡ 8ba10b72-027d-4266-a002-b1b6bbe0c8d5
+heatmap(a_M[1:natoms_r+2, 1:natoms_c+2], aspect_ratio = 1	)
+
+# ╔═╡ 39dafb9a-5f99-40eb-b98f-6d0071b20827
+a_M
+
+# ╔═╡ d7469640-9b09-4262-b738-29810bd19305
+plot([ a_x[2, 1,5, 1:end]     ])
+
+# ╔═╡ a1fc0684-5379-43d0-9dbd-b2efd1963e0f
+md"""
+Nit = $(@bind Nit Slider(1:Niter_ODE, show_value=true, default=1))
+"""
+
+# ╔═╡ a755dbab-6ac9-4a9e-a397-c47efce4d2f7
+begin
+function draw_scatter()	
+	
+plot(a_x[1,1:natoms_r, 1:natoms_c, end-1][:], 
+	 a_x[2, 1:natoms_r, 1:natoms_c, end-1][:], 
+	 color = [:black :orange], line = (1), 
+	 marker = ([:hex :d], 6, 0.5, Plots.stroke(3, :green)), leg = false, aspect_ratio = 1, 
+			zcolor = log.(a_E[1:natoms_r, 1:natoms_c, end-1][:])  )		
+		
+end
+end	
+
+# ╔═╡ 6960420d-bc50-4be3-9a26-2f43f14b903d
+function draw_animated_heatmap(fn)  # fn= identity for no transformation, log for logarthmit transformation of values
+	
+	@gif for Nit in 1:(Int64(floor(Niter_ODE/500))):Niter_ODE-1
+		
+	heatmap( fn.(a_E[1:natoms_r, 1:natoms_c, Nit])
+			, aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), clims=(0.0, 0.3))
+	
+	end
+	
+end
+
+# ╔═╡ a8011889-d844-4c98-bd3f-014e7eb58254
+draw_animated_heatmap(identity)
+
+# ╔═╡ 30d5a924-7bcd-4eee-91fe-7b10004a4139
+function draw_animation()
+	
+@gif for t in 1:(Int64(floor(Niter_ODE/100))):Niter_ODE-1
+		
+#@gif for t in 1:Niter_ODE-1		
+
+plot(a_x[1,2:natoms_r+1, 2:natoms_c+1, t][:], 
+	 a_x[2, 2:natoms_r+1, 2:natoms_c+1, t][:], 
+	 color = [:black :orange], line = (1), 
+	 marker = ([:hex :d], 6, 0.5, Plots.stroke(.5, :green)), leg = false, aspect_ratio = 1, 
+	zcolor = a_E[1:natoms_r, 1:natoms_c, t][:]  )					
+	end # for time step
+	
+end
+
+# ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
+begin
+
+# INTEGRATE EQUATIONS OF MOTION AND SET BOUNDARY CONDITIONS	
+	
+initialize_grid() # Initialize all matrices
+	
+solve_nolin()	
+	
+#tres_nolin = FSDTOPO_Nolin(2)	
+
 	
 draw_animation()
 #draw_animated_heatmap()
@@ -334,15 +367,87 @@ Niter = 35
 
 end;
 
+# ╔═╡ 8940ead8-cf2a-440e-ab7b-cc1919ae996d
+begin
+
+function FSDTOPO_Nolin(niter)	
+		
+"""		
+th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
+th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain		
+
+t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
+"""		
+		
+t = view(a_M, 1:natoms_r, 1:natoms_c)
+
+t_res = []					
+		
+for iter in 1:niter
+			
+	t .*= solve_nolin()	 / sigma_all_nolin # Obtain new thickness by FSD algorithm
+	
+	t = [min(nt, max_all_t_nolin) for nt in t] # Limit thickness to maximum
+			
+	penalty = min(1 + iter / full_penalty_iter, max_penalty) # Calculate penalty at this iteration
+			
+	# Filter loop					
+
+if penalty < max_penalty * 1			
+
+for gauss in 1:scale  # apply spatial filter as many times as scale in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)	
+				
+@inbounds Threads.@threads for j = 1:natoms_r
+@inbounds Threads.@threads for i in 1:natoms_c  # *** CHECK WHETHER INDICES ARE SWAPPED IN ALL CODE, EXPLAINING WHY DoFs 1 AND 2 HAD TO BE SWAPPED WHEN BUILDING K FROM Ke
+
+	(NN_t, NN_w) = (j > 1) ? (t[j-1, i], 2) : (0,0)
+	(SS_t, SS_w) = (j < natoms_r) ? (t[j+1, i], 2) : (0,0)							
+
+	(WW_t, WW_w) = i > 1 ? (t[j, i-1], 2) : (0,0)
+	(EE_t, EE_w) = i < natoms_c ? (t[j, i+1], 2) : (0,0)					
+
+	(NW_t, NW_w) = ((j > 1) && (i > 1)) ? (t[j-1, i-1], 1) : (0,0)
+	(NE_t, NE_w) = ((j > 1) && (i < natoms_c)) ? (t[j-1, i+1], 1) : (0,0)				
+
+	(SW_t, SW_w) = ((j < natoms_r) && (i > 1)) ? (t[j+1, i-1], 1) : (0,0)				
+	(SE_t, SE_w) = ((j < natoms_r) && (i < natoms_c)) ? (t[j+1, i+1], 1) : (0,0)				
+
+	t[j,i] = (t[j,i]*4 + NN_t * NN_w + SS_t * SS_w + EE_t * EE_w + WW_t * WW_w + NE_t* NE_w + SE_t * SE_w + NW_t * NW_w + SW_t * SW_w)/(4 + NN_w+ SS_w+ EE_w+ WW_w+ NE_w+ SE_w+ NW_w+ SW_w)			
+
+	end # for j
+	end # for i			
+					
+end # for gauss					
+					
+					
+end # if		
+
+			
+tq = [max((max_all_t_nolin*(min(nt,max_all_t_nolin)/max_all_t_nolin)^penalty), min_thick) for nt in t]
+
+
+t = copy(tq)  # ??? WHY IS THIS NECESSARY? OTHERWISE HEATMAP DISPLAYS A THICKNESS MAP WITH A MAXIMUM THICKNESS LARGER THAN THE SPECIFIED BOUND
+			
+push!(t_res, tq)			
+			
+end	# for	
+
+#draw_animation()		
+		
+return t_res # returns an array of the views of the canvas containing only the thickness domain for each iteration
+		
+end # end function
+	
+end
+
+
 # ╔═╡ b23125f6-7118-4ce9-a10f-9c3d3061f8ce
 md"""
 ### Setup model
 """
 
 # ╔═╡ f60365a0-920d-11eb-336a-bf5953215934
-begin
-
-# Setup models
+begin # Setup models
 
 nDoF = 2*(nely+1)*(nelx+1)  # Total number of degrees of freedom
 	
@@ -592,40 +697,46 @@ md"""
 # ╠═4da7c9e7-6997-49a1-92bc-462d247f4e12
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
-# ╠═05862b1a-bf4e-4d1f-a99f-0a983cae655d
-# ╠═7e268153-55d5-4419-87ab-11b764628502
 # ╠═402abadb-d500-4801-8005-11d036f8f351
-# ╠═324383c1-590f-4934-8be2-8d5a28ede8c6
-# ╠═8a5761b3-9554-4e48-bb4c-60393baadb3a
+# ╟─8a5761b3-9554-4e48-bb4c-60393baadb3a
 # ╟─d37fd3f6-49cb-4738-9536-21ac6212c749
-# ╟─01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
+# ╠═01bfb4bc-d498-4dd4-b2a8-f6a5e59f8ae4
 # ╠═5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
+# ╠═361c11cc-94da-4e9c-80df-92ee548d2146
+# ╠═27cf5226-589d-471f-91b8-7daf3b8694cd
+# ╟─8940ead8-cf2a-440e-ab7b-cc1919ae996d
+# ╠═7aefbb01-1e15-4aa1-9a49-b182e6723764
+# ╠═f670fc69-09e1-4697-88ac-62e3a49ca906
+# ╠═8914feb6-bf7c-46a7-9d6c-7c54538802f5
+# ╠═fd6b2897-ff79-4ea3-b662-3eca9b8755d1
+# ╠═8ba10b72-027d-4266-a002-b1b6bbe0c8d5
+# ╠═39dafb9a-5f99-40eb-b98f-6d0071b20827
 # ╠═d7469640-9b09-4262-b738-29810bd19305
 # ╟─a1fc0684-5379-43d0-9dbd-b2efd1963e0f
 # ╠═a8011889-d844-4c98-bd3f-014e7eb58254
 # ╟─a755dbab-6ac9-4a9e-a397-c47efce4d2f7
 # ╟─6960420d-bc50-4be3-9a26-2f43f14b903d
-# ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
+# ╠═30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
 # ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
-# ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
+# ╠═7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
-# ╟─2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
-# ╟─4aba92de-9212-11eb-2089-073a71342bb0
+# ╠═2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
+# ╠═4aba92de-9212-11eb-2089-073a71342bb0
 # ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╟─6bd11d90-93c1-11eb-1368-c9484c1302ee
 # ╟─a8c96d92-aee1-4a91-baf0-2a585c2fa51f
-# ╟─2c768930-9210-11eb-26f8-0dc24f22afaf
+# ╠═2c768930-9210-11eb-26f8-0dc24f22afaf
 # ╟─d108d820-920d-11eb-2eee-bb6470fb4a56
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╠═c652e5c0-9207-11eb-3310-ddef16cdb1ac
 # ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
 # ╟─c58a7360-920c-11eb-2a15-bda7ed075812
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
-# ╟─fc7e00a0-9205-11eb-039c-23469b96de19
+# ╠═fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─13b32a20-9206-11eb-3af7-0feea278594c

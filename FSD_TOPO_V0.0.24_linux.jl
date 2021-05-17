@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.14.4
+# v0.14.5
 
 using Markdown
 using InteractiveUtils
@@ -330,7 +330,7 @@ min_thick = 0.00001
 scale = 20
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
-Niter = 35
+Niter = 25
 
 end;
 
@@ -375,6 +375,12 @@ end;
 md"""
 #### Call FSDTOPO with Niter
 """
+
+# ╔═╡ 78138cb0-6bd0-46d7-a10f-c47c532db71c
+
+
+# ╔═╡ 8f537875-46b6-4db6-b9dd-3ed3ced84a34
+
 
 # ╔═╡ 2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
 md"""
@@ -485,70 +491,85 @@ begin
 
 function FSDTOPO(niter)	
 		
-		
 th = OffsetArray( zeros(Float64,1:nely+2,1:nelx+2), 0:nely+1,0:nelx+1) # Initialize thickness canvas with ghost cells as padding
 th[1:nely,1:nelx] .= thick_ini	# Initialize thickness distribution in domain		
 
-t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
-
-t_res = []					
+#t = view(th, 1:nely,1:nelx) # take a view of the canvas representing the thickness domain			
 		
+# Initialize iterated thickness in domain
+t_iter = ones(Float64,1:nely,1:nelx).*thick_ini  
+		
+t_res = []	# Array of arrays with iteration history of thickness
+
+
+# Loop niter times the FSD-TOPO algorithm		
 for iter in 1:niter
+
+# Obtain new thickness by FSD algorithm			
+t_iter .*= INTERNAL_LOADS(t_iter)/ sigma_all 
+
+# Limit thickness to maximum			
+t_iter = [min(nt, max_all_t) for nt in t_iter] 
+		
+# Calculate penalty at this iteration			
+penalty = min(1 + iter / full_penalty_iter, max_penalty) 
 			
-	t .*= INTERNAL_LOADS(t)	 / sigma_all # Obtain new thickness by FSD algorithm
-	
-	t = [min(nt, max_all_t) for nt in t] # Limit thickness to maximum
 
 			
-			
-	penalty = min(1 + iter / full_penalty_iter, max_penalty) # Calculate penalty at this iteration
-			
+# Filter loop								
 
-			
-	# Filter loop					
 
-"""			
-t = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
+if penalty < max_penalty * 1
+for gauss in 1:scale  # apply spatial filter as many times as scale in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)
+t_iter = [sum(th[i.+CartesianIndices((-1:1, -1:1))]
 				.*( [1 2 1 ;
-				   2 4 2 ;
-				   1 2 1] ./16)
-		) for i in CartesianIndices(t)]						
-"""		
-
-if penalty < max_penalty * 1			
-
-for gauss in 1:scale  # apply spatial filter as many times as scale in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)	
-				
-	for j = 1:nely, i in 1:nelx  # *** CHECK WHETHER INDICES ARE SWAPPED IN ALL CODE, EXPLAINING WHY DoFs 1 AND 2 HAD TO BE SWAPPED WHEN BUILDING K FROM Ke
-
-	(NN_t, NN_w) = (j > 1) ? (t[j-1, i], 2) : (0,0)
-	(SS_t, SS_w) = (j < nely) ? (t[j+1, i], 2) : (0,0)							
-
-	(WW_t, WW_w) = i > 1 ? (t[j, i-1], 2) : (0,0)
-	(EE_t, EE_w) = i < nelx ? (t[j, i+1], 2) : (0,0)					
-
-	(NW_t, NW_w) = ((j > 1) && (i > 1)) ? (t[j-1, i-1], 1) : (0,0)
-	(NE_t, NE_w) = ((j > 1) && (i < nelx)) ? (t[j-1, i+1], 1) : (0,0)				
-
-	(SW_t, SW_w) = ((j < nely) && (i > 1)) ? (t[j+1, i-1], 1) : (0,0)				
-	(SE_t, SE_w) = ((j < nely) && (i < nelx)) ? (t[j+1, i+1], 1) : (0,0)				
-
-	t[j,i] = (t[j,i]*4 + NN_t * NN_w + SS_t * SS_w + EE_t * EE_w + WW_t * WW_w + NE_t* NE_w + SE_t * SE_w + NW_t * NW_w + SW_t * SW_w)/(4 + NN_w+ SS_w+ EE_w+ WW_w+ NE_w+ SE_w+ NW_w+ SW_w)			
-
-	end # for j, i			
+				    2 4 2 ;
+				    1 2 1] ./    
+			sum((th[CartesianIndices((1, 1)).+CartesianIndices((-1:1, -1:1))] 
+		   .> 0).*( [1 2 1 ;
+			  	     2 4 2 ;
+				     1 2 1] )))
+		) for i in CartesianIndices(t_iter)]		
 					
-end # for gauss					
-					
-					
+th[1:nely,1:nelx] .= t_iter					
+end # for gauss								
 end # if		
 
 
-		
 			
-tq = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t]
+			
+"""
+if penalty < max_penalty * 1			
+
+tint = similar(t_iter)
+				
+for gauss in 1:scale  # apply spatial filter as many times as scale in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)	
+				
+for j = 1:nely, i in 1:nelx  # *** CHECK WHETHER INDICES ARE SWAPPED IN ALL CODE, EXPLAINING WHY DoFs 1 AND 2 HAD TO BE SWAPPED WHEN BUILDING K FROM Ke
+						
+	(NN_t, NN_w) = (j > 1) ? (t_iter[j-1, i], 2) : (0,0)
+	(SS_t, SS_w) = (j < nely) ? (t_iter[j+1, i], 2) : (0,0)							
+	(WW_t, WW_w) = i > 1 ? (t_iter[j, i-1], 2) : (0,0)
+	(EE_t, EE_w) = i < nelx ? (t_iter[j, i+1], 2) : (0,0)					
+	(NW_t, NW_w) = ((j > 1) && (i > 1)) ? (t_iter[j-1, i-1], 1) : (0,0)
+	(NE_t, NE_w) = ((j > 1) && (i < nelx)) ? (t_iter[j-1, i+1], 1) : (0,0)			
+	(SW_t, SW_w) = ((j < nely) && (i > 1)) ? (t_iter[j+1, i-1], 1) : (0,0)	
+	(SE_t, SE_w) = ((j < nely) && (i < nelx)) ? (t_iter[j+1, i+1], 1) : (0,0)		
+						
+tint[j,i] = (t_iter[j,i]*4 + NN_t * NN_w + SS_t * SS_w + EE_t * EE_w + WW_t * WW_w + NE_t* NE_w + SE_t * SE_w + NW_t * NW_w + SW_t * SW_w)/(4 + NN_w+ SS_w+ EE_w+ WW_w+ NE_w+ SE_w+ NW_w+ SW_w)			
+
+end # for j, i			
+t_iter = copy(tint)					
+end # for gauss							
+end # if penalty
+"""
+			
+			
+			
+tq = [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t_iter]
 
 
-t = copy(tq)  # ??? WHY IS THIS NECESSARY? OTHERWISE HEATMAP DISPLAYS A THICKNESS MAP WITH A MAXIMUM THICKNESS LARGER THAN THE SPECIFIED BOUND
+t_iter = copy(tq)  # ??? WHY IS THIS NECESSARY? OTHERWISE HEATMAP DISPLAYS A THICKNESS MAP WITH A MAXIMUM THICKNESS LARGER THAN THE SPECIFIED BOUND
 			
 push!(t_res, tq)			
 			
@@ -615,6 +636,8 @@ md"""
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═d007f530-9255-11eb-2329-9502dc270b0d
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
+# ╠═78138cb0-6bd0-46d7-a10f-c47c532db71c
+# ╠═8f537875-46b6-4db6-b9dd-3ed3ced84a34
 # ╟─2bfb23d9-b434-4f8e-ab3a-b598701aa0e6
 # ╟─4aba92de-9212-11eb-2089-073a71342bb0
 # ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
@@ -625,7 +648,7 @@ md"""
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╠═c652e5c0-9207-11eb-3310-ddef16cdb1ac
 # ╟─c1711000-920b-11eb-14ba-eb5ce08f3941
-# ╟─c58a7360-920c-11eb-2a15-bda7ed075812
+# ╠═c58a7360-920c-11eb-2a15-bda7ed075812
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╟─fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─13b32a20-9206-11eb-3af7-0feea278594c
