@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.12.0
+# v0.14.5
 
 using Markdown
 using InteractiveUtils
@@ -631,9 +631,6 @@ md"""
 # ╔═╡ bbc2ea98-b15a-47ae-8566-7383e80bcfd6
 md""" tests"""
 
-# ╔═╡ 01dd6d61-b666-472b-816b-b2721a20b320
-Threads.nthreads()
-
 # ╔═╡ 47cb2f68-84c2-4eb8-b90a-84e298183ce9
 sz = 10000
 
@@ -696,7 +693,6 @@ sol = Z\y
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╠═fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─bbc2ea98-b15a-47ae-8566-7383e80bcfd6
-# ╠═01dd6d61-b666-472b-816b-b2721a20b320
 # ╠═47cb2f68-84c2-4eb8-b90a-84e298183ce9
 # ╠═72ac297c-cd17-4d3e-8b91-52c7b047ccea
 # ╠═9f2795f7-0485-431f-8c1f-93a014bc826f
