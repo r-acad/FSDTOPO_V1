@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.12.0
+# v0.14.5
 
 using Markdown
 using InteractiveUtils
@@ -478,18 +478,6 @@ md"""
 N = $(@bind N Slider(1:Niter, show_value=true, default=1))
 """
 
-# ╔═╡ 7f47d8ef-98be-416d-852f-97fbaa287eec
-begin
-	"""
-	anim_evolution = @animate for i in 1:Niter	
-		heatmap([ reverse(newt[i], dims=(1,2)) reverse(newt[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
-	end
-	"""
-end
-
-# ╔═╡ 200a3956-d229-434b-bf25-105e34acb35b
-#gif(anim_evolution, "scale_120_44Ksec_21_05_18.gif", fps = 6)
-
 # ╔═╡ 6bd11d90-93c1-11eb-1368-c9484c1302ee
 md""" ### FE SOLVER FUNCTIONS  """
 
@@ -613,6 +601,17 @@ newt = FSDTOPO(Niter); # Call topology optimization problem and store results in
 
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
 heatmap(reverse(newt[N], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+
+# ╔═╡ 7f47d8ef-98be-416d-852f-97fbaa287eec
+begin
+	
+	anim_evolution = @animate for i in 1:Niter	
+		heatmap([ reverse(newt[i], dims=(1,2)) reverse(newt[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
+	end
+end
+
+# ╔═╡ 200a3956-d229-434b-bf25-105e34acb35b
+gif(anim_evolution, "scale_120_44Ksec_21_05_18.gif", fps = 6)
 
 # ╔═╡ 0342ef5f-484d-4ed7-8260-b2b1330fead0
 #heatmap( reverse(Array(Gauss_3x3_kernel), dims=1) , aspect_ratio = 1, c=cgrad(:roma, 10, categorical = true))

@@ -13,6 +13,11 @@ macro bind(def, element)
     end
 end
 
+
+Pkg.add([Pkg.PackageSpec(name="Pluto", version="0.0.12")])
+
+
+
 # ╔═╡ fc7e00a0-9205-11eb-039c-23469b96de19
 begin
 	import Pkg
@@ -31,7 +36,7 @@ begin
 	
 	TableOfContents(aside=true)
 	
-end#begin
+end
 
 # ╔═╡ 66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 md"""
@@ -55,8 +60,6 @@ v0.0.24 WORKS FULLY. BASELINE
 v0.0.25 Start of the implementation of nonlinear FSDTOPO
 
 v0.0.26 was a failed attempt to use staticarrays but the size of the target matrices was too large
-
-- V0.0.30 Last Pluto version of the Linear Solver and FSD Topo
 
 
 """
@@ -87,7 +90,7 @@ begin # SET CONSTANTS
 	
 	const sigma_all_nolin = 0.3
 	
-end;#begin
+end;
 
 # ╔═╡ 0d026d8d-75a4-4fd5-a95e-b815963c468e
 md"""### Allocate Arrays in Nolin"""
@@ -124,7 +127,7 @@ Klink = zeros(Float64,natoms_r,natoms_c, length(neighbors))
 # Array holding the number of active elastic connections of an atom with neighbors (frame elements are considered non-active). Used for normalization of "energy levels"
 n_links = zeros(Int64,natoms_r,natoms_c) 
 
-end;#begin
+end;
 
 # ╔═╡ 4db99657-4f4c-47ed-9639-b521d03e45c9
 md"""### Initialize Grid and State Matrices"""
@@ -317,7 +320,7 @@ md"""
 
 - 0.0.10 Added animation and additional clean-up. GAUSS FILTER ADDED, IT WORKS FINE
 - V0.0.28 Element Matrices made static, general code clean up in linear section
-- V0.0.30 Last Pluto version of the Linear Solver and FSD Topo
+
 """
 
 # ╔═╡ 965946ba-8217-4202-8870-73d89c0c7340
@@ -342,7 +345,7 @@ nelx = 6*scale ; nely = 2*scale  #mesh size
 Niter = 25
 
 full_penalty_iter = Niter*.1
-end;#begin
+end;
 
 # ╔═╡ 8940ead8-cf2a-440e-ab7b-cc1919ae996d
 begin
@@ -405,7 +408,7 @@ end # end function
 	
 	
 	
-end;#begin
+end
 
 
 # ╔═╡ 5c5e95fb-4ee2-4f37-9aaf-9ceaa05def57
@@ -424,7 +427,7 @@ tres_nolin = FSDTOPO_Nolin(Niter_FSD_Nolin)	# Solve topology optimization proble
 draw_animation()
 #draw_animated_heatmap()
 	
-end;#begin
+end
 
 # ╔═╡ 83badc22-dc5b-4b69-9f6b-c7d4825178c2
 tres_nolin[3]
@@ -465,7 +468,7 @@ edofMat = repeat(edofVec,1,8) + repeat([-1 -2 1 0 2*nely.+[3 2 1 0]],nelx*nely)	
 iK = kron(edofMat,ones(Int64,8,1))'[:]
 jK = kron(edofMat,ones(Int64,1,8))'[:]
 	
-end;#begin
+end;
 
 # ╔═╡ 7ae886d4-990a-4b14-89d5-5708f805ef93
 md"""
@@ -487,7 +490,7 @@ begin
 		heatmap([ reverse(newt[i], dims=(1,2)) reverse(newt[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
 	end
 	"""
-end#begin
+end
 
 # ╔═╡ 200a3956-d229-434b-bf25-105e34acb35b
 #gif(anim_evolution, "scale_120_44Ksec_21_05_18.gif", fps = 6)
@@ -529,7 +532,7 @@ KE_CQUAD4 = @SMatrix [ 	 1   DK4  AK4 -GK4   BK4 -DK4  CK4  GK4;
 			 			BK4 -DK4  CK4  GK4   1    DK4  AK4 -GK4;
 				   	   -DK4  BK4 -GK4  AK4   DK4  1    GK4  CK4;
 			 			CK4 -GK4  BK4  DK4   AK4  GK4  1   -DK4;
-			 			GK4  AK4  DK4  BK4  -GK4  CK4 -DK4   1  ]	
+			 			GK4  AK4  DK4  BK4  -GK4  CK4 -DK4  1]	
 	
 # Matrix relating cartesian stress components (sxx, syy, sxy) with nodal displacements in CQUAD4 element, reverse-engineered from NASTRAN with E = 1, t = 1, nu=.03
 const AS4 = -1.209677E+00; const BS4 = -3.629032E-01; const CS4 = -4.233871E-01  	
@@ -538,10 +541,10 @@ SU_CQUAD4 = @SMatrix [ 	 AS4  BS4  -AS4 BS4 -AS4 -BS4  AS4 -BS4;
 						 CS4  CS4  CS4 -CS4 -CS4 -CS4 -CS4  CS4]
 
 Gauss_3x3_kernel = @SMatrix [1.0 2.0 1.0 ;
-				    		 2.0 4.0 2.0 ;
-				    		 1.0 2.0 1.0 ] 	
+				    		2.0 4.0 2.0 ;
+				    		1.0 2.0 1.0] 	
 	
-end;#begin
+end	;	
 
 # ╔═╡ 2c768930-9210-11eb-26f8-0dc24f22afaf
 function SOLVE_INTERNAL_LOADS(thick)
@@ -633,8 +636,20 @@ md"""
 # ╔═╡ bbc2ea98-b15a-47ae-8566-7383e80bcfd6
 md""" tests"""
 
+# ╔═╡ 47cb2f68-84c2-4eb8-b90a-84e298183ce9
+sz = 10000
+
+# ╔═╡ 72ac297c-cd17-4d3e-8b91-52c7b047ccea
+Z = rand(sz,sz)
+
+# ╔═╡ 9f2795f7-0485-431f-8c1f-93a014bc826f
+y = rand(sz)
+
+# ╔═╡ 76e3144d-5bf9-474c-944c-4ec5d2db4967
+sol = Z\y
+
 # ╔═╡ Cell order:
-# ╠═66ba9dc4-1d50-410a-acdd-850c8f27fd3d
+# ╟─66ba9dc4-1d50-410a-acdd-850c8f27fd3d
 # ╠═4da7c9e7-6997-49a1-92bc-462d247f4e12
 # ╟─454494b5-aca5-43d9-8f48-d5ce14fbd5a9
 # ╠═10ececaa-5ac8-4870-bcbb-210ffec09515
@@ -659,7 +674,7 @@ md""" tests"""
 # ╟─6960420d-bc50-4be3-9a26-2f43f14b903d
 # ╟─30d5a924-7bcd-4eee-91fe-7b10004a4139
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
-# ╠═d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─965946ba-8217-4202-8870-73d89c0c7340
 # ╠═6ec04b8d-e5d9-4f62-b5c5-349a5f71e3e4
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
@@ -683,3 +698,7 @@ md""" tests"""
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╠═fc7e00a0-9205-11eb-039c-23469b96de19
 # ╟─bbc2ea98-b15a-47ae-8566-7383e80bcfd6
+# ╠═47cb2f68-84c2-4eb8-b90a-84e298183ce9
+# ╠═72ac297c-cd17-4d3e-8b91-52c7b047ccea
+# ╠═9f2795f7-0485-431f-8c1f-93a014bc826f
+# ╠═76e3144d-5bf9-474c-944c-4ec5d2db4967
