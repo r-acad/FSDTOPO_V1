@@ -16,11 +16,10 @@ using Statistics, LinearAlgebra  # standard libraries
 const sigma_all	= 3
 const max_all_t = 5
 
-const max_penalty = 5
-const thick_ini = 1.0		
+const max_penalty = 5	
 min_thick = max_all_t * 0.0000001
 		
-scale = 10
+scale = 1500
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
 Niter = 25
@@ -52,6 +51,14 @@ iK = kron(edofMat,ones(Int64,8,1))'[:]
 jK = kron(edofMat,ones(Int64,1,8))'[:]	
 	
 	
+canvas = OffsetArray(zeros(Float64, 1:nely+2, 1:nelx+2), 0:nely+1,0:nelx+1)
+
+t_iter = view(canvas, 1:nely,1:nelx)
+t_iter .= max_all_t # Initialize iterated thickness in domain
+
+t_res = []	# Array of arrays with iteration history of thickness	
+	
+S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component or function)	
 	
 end;#begin
 
@@ -60,7 +67,7 @@ md""" ## LINEAR FSDTOPO"""
 
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
-### Version  v 0.0.10 OK
+### Version  v 0.1.1 OK
 - 0.0.8 Back to original formulation in 88 lines after attempt to reorder elements in v 0.0.6
 - 0.0.8 OK works in obtaining a meaningful internal loads field
 
@@ -71,6 +78,7 @@ md"""
 - V0.0.30 Last Pluto version of the Linear Solver and FSD Topo
 
 - LIN V0.1.0 First isolated Linear Solver version in Pluto
+- LIN V0.1.1 Further optimizations by making canvas and t_iter global variables
 """
 
 # ╔═╡ 965946ba-8217-4202-8870-73d89c0c7340
@@ -83,6 +91,28 @@ md"""
 #### Call FSDTOPO with Niter
 """
 
+# ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
+function show_final_design()
+heatmap(reverse(t_res[end], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+end	
+
+# ╔═╡ 4c4e1eaa-d605-47b0-bce9-240f15c6f0aa
+show_final_design()
+
+# ╔═╡ 7f47d8ef-98be-416d-852f-97fbaa287eec
+function plot_animation()
+	
+	anim_evolution = @animate for i in 1:Niter	
+		heatmap([ reverse(t_res[i], dims=(1,2)) reverse(t_res[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
+	end
+	
+	gif(anim_evolution, "scale_120_44Ksec_21_05_18.gif", fps = 6)
+	
+end
+
+# ╔═╡ b0de4ff7-5004-43f2-9c56-f8a27485754a
+plot_animation()
+
 # ╔═╡ 6bd11d90-93c1-11eb-1368-c9484c1302ee
 md""" ### FE SOLVER FUNCTIONS  """
 
@@ -92,19 +122,17 @@ md"""
 """
 
 # ╔═╡ b9ec0cbf-f9a2-4980-b7cd-1ecda0566631
-@inline function convolution3x3(matr, kern)
+@inline function convolution3x3(kern)
 
 # matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr is = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS > 0)	
 	
-canvas = OffsetArray(zeros(Float64, 1:size(matr,1)+2, 1:size(matr,2)+2), 0:size(matr,1)+1,0:size(matr,2)+1)
-	
-canvas[1:size(matr,1), 1:size(matr,2)] = matr
+
 
 # Return the sum the product of a subarray centered in the cartesian indices corresponding to i, of the interior matrix, and the kernel elements, centered in CartInd i. Then .divide by the sum of the weights multiplied by a 1 or a 0 depending on whether the base element is >0 or not. Note: the lines below are a single expression
 
-[sum( canvas[i .+ CartesianIndices((-1:1, -1:1))]         .* kern)	/ 
- sum((canvas[i .+ CartesianIndices((-1:1, -1:1))] .> 0.0) .* kern) 
-		 for i in CartesianIndices(matr)]
+[sum( canvas[i .+ CartesianIndices((-1:1, -1:1))]          .* kern)	/ 
+ sum((canvas[i .+ CartesianIndices((-1:1, -1:1))] !== 0.0) .* kern) 
+		 for i in CartesianIndices(t_iter)]
 end
 
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
@@ -135,10 +163,10 @@ Gauss_3x3_kernel = @SMatrix [1.0 2.0 1.0 ;
 end;#begin
 
 # ╔═╡ 2c768930-9210-11eb-26f8-0dc24f22afaf
-function SOLVE_INTERNAL_LOADS(thick)
+function SOLVE_INTERNAL_LOADS()
 
 	
-sK = reshape(KE_CQUAD4[:]*thick[:]', 64*nelx*nely) 
+sK = reshape(KE_CQUAD4[:]*t_iter[:]', 64*nelx*nely) 
 
 # Build global stiffness matrix		
 #K = Symmetric(sparse(iK,jK,sK))
@@ -148,7 +176,7 @@ K = sparse(iK,jK,sK)
 # Obtain global displacements	
 U[freedofs] = K[freedofs,freedofs]\F[freedofs]		
 	
-S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing field results (typically a stress component or function)
+
 				
 @inbounds Threads.@threads 	for y = 1:nely
 @inbounds Threads.@threads  for x = 1:nelx # Node numbers, starting at top left corner and growing in columns going down as per in 99 lines of code		
@@ -171,17 +199,13 @@ return S
 end # function	
 
 # ╔═╡ 87be1f09-c729-4b1a-b05c-48c79039390d
-function FSDTOPO(niter)	
-	
-# Initialize iterated thickness in domain
-t_iter = ones(Float64,1:nely,1:nelx).*thick_ini  	
-t_res = []	# Array of arrays with iteration history of thickness
+function FSDTOPO()	
 
 # Loop niter times the FSD-TOPO algorithm		
-for iter in 1:niter
+for iter in 1:Niter
 
 # Obtain new thickness by FSD algorithm			
-t_iter .*= SOLVE_INTERNAL_LOADS(t_iter) / sigma_all 
+t_iter .*= SOLVE_INTERNAL_LOADS() / sigma_all 
 
 # Limit thickness to maximum			
 t_iter .= [min(nt, max_all_t) for nt in t_iter] 
@@ -191,7 +215,7 @@ penalty = min(1 + iter / full_penalty_iter, max_penalty)
 			
 # apply spatial filter a decreasing number of times function of the iteration number, but proportional to the scale, in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)	
 for gauss in 1:max(0,(ceil(scale*(iter-.7*Niter)/(2*-.7*Niter)))) 
-	t_iter .= convolution3x3(t_iter, Gauss_3x3_kernel)					
+	t_iter .= convolution3x3(Gauss_3x3_kernel)					
 end # for gauss								
 
 t_iter .= [max((max_all_t*(min(nt,max_all_t)/max_all_t)^penalty), min_thick) for nt in t_iter]
@@ -200,34 +224,10 @@ push!(t_res, copy(t_iter))
 	
 end	# for topo iter
 		
-return t_res # returns an array of the views of the canvas containing only the thickness domain for each iteration
-		
 end # end function
 
 # ╔═╡ d007f530-9255-11eb-2329-9502dc270b0d
-newt = FSDTOPO(Niter); # Call topology optimization problem and store results in array of arrays
-
-# ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
-function show_final_design()
-heatmap(reverse(newt[end], dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
-end	
-
-# ╔═╡ 4c4e1eaa-d605-47b0-bce9-240f15c6f0aa
-show_final_design()
-
-# ╔═╡ 7f47d8ef-98be-416d-852f-97fbaa287eec
-function plot_animation()
-	
-	anim_evolution = @animate for i in 1:Niter	
-		heatmap([ reverse(newt[i], dims=(1,2)) reverse(newt[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
-	end
-	
-	gif(anim_evolution, "scale_120_44Ksec_21_05_18.gif", fps = 6)
-	
-end
-
-# ╔═╡ b0de4ff7-5004-43f2-9c56-f8a27485754a
-plot_animation()
+FSDTOPO(); # Call topology optimization problem and store results in array of arrays t_res
 
 # ╔═╡ Cell order:
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
