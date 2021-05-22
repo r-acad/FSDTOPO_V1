@@ -51,7 +51,7 @@ scale = 40
 	
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
-Niter = 35
+Niter = 50
 
 full_penalty_iter = Niter*.4	
 
