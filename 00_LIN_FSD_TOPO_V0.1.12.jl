@@ -4,18 +4,6 @@
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ 98718b6e-2521-431f-9bfa-bd016495994c
-using Pkg; Pkg.add("FFTW")
-
-# ╔═╡ 38d1f9a2-25f6-4691-ab1b-506fe9b42a4d
- Pkg.add("FFTW")
-
-# ╔═╡ 734421b9-04bb-414e-b56e-e0feb87fbe6d
-using FFTW
-
-# ╔═╡ 706f94f1-f71e-4eec-aa13-024ed1839cd7
-using AbstractFFTs
-
 # ╔═╡ 894130b0-3038-44fe-9d1f-46afe8734b98
 begin
 		using Plots, OffsetArrays, SparseArrays
@@ -55,19 +43,19 @@ begin # Setup models
 println(">>> START FSD-TOPO: "  * string(Dates.now()))
 	
 # Set global parameters
-const sigma_all	= 15.0
+const sigma_all	= 5.0
 const max_all_t = 5.0
 const max_penalty = 3
 		
-scale = 80
+scale = 40
 	
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
-Niter = 50
+Niter = 150
 
 full_penalty_iter = Niter*.8
 
-ngauss = min(10, Int(floor(scale / 10)))
+ngauss = 1 #min(10, Int(floor(scale / 10)))
 
 Gauss_kernel = @MArray ones(2*ngauss+1,2*ngauss+1)			
 Gauss_kernel = (collect([exp(- (i^2+j^2) / (2*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss])	)	
@@ -108,25 +96,6 @@ md"""
 
 # ╔═╡ 95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
 heatmap(reverse(abs.(S).*t_res[end] ./5 , dims = 1), clim = (20, 30), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
-
-# ╔═╡ f51bc0fc-a330-41fd-88a4-108d559314b0
-B = fft(t_res[end]).* Gauss_kernel
-
-# ╔═╡ 760764de-e870-4cf5-9b5a-fe30f411d13e
-heatmap(real.(B))
-
-
-# ╔═╡ aadd8686-b5a3-4ea2-84df-4d9b43617113
-A1 = ifft(B)
-
-# ╔═╡ 344366f7-e05f-437c-986f-cf54fcc4946f
-heatmap(real.(A1), aspect_ratio = 1)
-
-# ╔═╡ b4eabee9-d7ec-41ac-a50b-48ba785816ce
-Z = rand(10000, 10000)
-
-# ╔═╡ 9f91d474-fcc2-4bbf-936e-a61704a15a69
-Y = fft(Z)
 
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 begin
@@ -205,7 +174,7 @@ t_iter .*= ((((abs.(S) ./ sigma_all ) .- t_iter) .* 1) .+ t_iter)	./ max_all_t
 		
 #*************************************************************************		
 # apply spatial filter a decreasing number of times function of the iteration number, but proportional to the scale, in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)			
-if iter < Niter	-2
+if iter < Niter	-20
 println("       GAUSS Start: " * string(Dates.now()))								
 # matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr is = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS > 0)	
 canvas[1:size(t_iter,1), 1:size(t_iter,2)] .= t_iter
@@ -273,20 +242,10 @@ show_final_design()
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
 # ╠═4c4e1eaa-d605-47b0-bce9-240f15c6f0aa
-# ╠═98718b6e-2521-431f-9bfa-bd016495994c
-# ╠═734421b9-04bb-414e-b56e-e0feb87fbe6d
-# ╠═95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
-# ╠═38d1f9a2-25f6-4691-ab1b-506fe9b42a4d
-# ╠═f51bc0fc-a330-41fd-88a4-108d559314b0
-# ╠═760764de-e870-4cf5-9b5a-fe30f411d13e
-# ╠═aadd8686-b5a3-4ea2-84df-4d9b43617113
-# ╠═344366f7-e05f-437c-986f-cf54fcc4946f
-# ╠═706f94f1-f71e-4eec-aa13-024ed1839cd7
-# ╠═b4eabee9-d7ec-41ac-a50b-48ba785816ce
-# ╠═9f91d474-fcc2-4bbf-936e-a61704a15a69
-# ╠═b0de4ff7-5004-43f2-9c56-f8a27485754a
+# ╟─95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
+# ╟─b0de4ff7-5004-43f2-9c56-f8a27485754a
 # ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╟─894130b0-3038-44fe-9d1f-46afe8734b98
-# ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
-# ╠═4aba92de-9212-11eb-2089-073a71342bb0
+# ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
+# ╟─4aba92de-9212-11eb-2089-073a71342bb0
