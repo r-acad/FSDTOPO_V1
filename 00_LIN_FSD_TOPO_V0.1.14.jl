@@ -47,11 +47,11 @@ const sigma_all	= 7.0
 const max_all_t = 5.0
 const max_penalty = 5
 		
-scale = 1000
+scale = 40
 	
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
-Niter = 250
+Niter = 25
 
 full_penalty_iter = Niter*1.1
 

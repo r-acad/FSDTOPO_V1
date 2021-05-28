@@ -43,17 +43,17 @@ begin # Setup models
 println(">>> START FSD-TOPO: "  * string(Dates.now()))
 	
 # Set global parameters
-const sigma_all	= 7.0
+const sigma_all	= 6.0
 const max_all_t = 5.0
-const max_penalty = 5
+const max_penalty = 1
 		
-scale = 1000
+scale = 600
 	
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
 Niter = 250
 
-full_penalty_iter = Niter*1.1
+full_penalty_iter = Niter*0.1
 
 ngauss = min(10, Int(floor(scale / 10)))
 
@@ -94,8 +94,11 @@ md"""
 #### Call FSDTOPO with Niter
 """
 
+# ╔═╡ a3592c76-5fe7-4936-9d02-5ad2ce25a504
+Vol_Frac_pct = sum(t_res[end])/(nelx*nely*max_all_t)*100
+
 # ╔═╡ 95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
-heatmap(reverse(abs.(S).*t_res[end] ./5 , dims = 1), clim = (0, 12), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
+heatmap(reverse(abs.(S).*t_res[end] ./5 , dims = 1), clim = (0, 15), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true))
 
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 begin
@@ -157,24 +160,18 @@ ssign = abs(s1) < abs(s2) ? 1 : -1
 S[y, x] = ssign * √(s1 ^ 2 + s2 ^ 2 - s1 * s2)  # Von Mises stress in plane stress case
 				
 #S[y, x] = ssign * (abs(s1) + abs(s2))
-
-			
-				
-				
 				
 end # for x
 end # for y
 
 		
 		
-		
 # Obtain new thickness by FSD algorithm	and normalize		
 t_iter .*= ((((abs.(S) ./ sigma_all ) .- t_iter) .* 1) .+ t_iter)	./ max_all_t
-	
 		
 #*************************************************************************		
 # apply spatial filter a decreasing number of times function of the iteration number, but proportional to the scale, in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)			
-if iter < 0 #Niter	-120
+if iter <  Niter - 2
 println("       GAUSS Start: " * string(Dates.now()))								
 # matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr is = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS > 0)	
 canvas[1:size(t_iter,1), 1:size(t_iter,2)] .= t_iter
@@ -193,8 +190,15 @@ t_iter .= [min(nt, 1) for nt in t_iter]
 		
 # Calculate penalty at this iteration			
 penalty = min(1 + iter / full_penalty_iter, max_penalty) 
-t_iter .= max_all_t .* [max((nt^penalty),  1e-8) for nt in t_iter]				
-			
+#t_iter .= max_all_t .* [nt^penalty + 1e-8 for nt in t_iter]				
+		
+#t_iter .= +1e-8 .+ max_all_t .* [((1.0 - cos(pi*i))/2)^penalty for i in t_iter]			
+p = iter / Niter
+		
+t_iter .= 1.e-8 .+ max_all_t .* [(i > p*.95)*i for i in t_iter]		
+		
+		
+		
 		
 push!(t_res, copy(t_iter))			
 
@@ -220,12 +224,33 @@ function plot_animation()
 		heatmap([ reverse(t_res[i], dims=(1,2)) reverse(t_res[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
 	end
 	
-	gif(anim_evolution, "z:\\latest.gif", fps = 6)
+	
+	gif(anim_evolution, "z:\\latest.gif", fps = 12)
 	
 end
 
 # ╔═╡ b0de4ff7-5004-43f2-9c56-f8a27485754a
 plot_animation()
+
+# ╔═╡ c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
+function plot_animation_stress()
+	
+	anim_evolution = @animate for i in 1:Niter	
+		
+		heatmap([ reverse(t_res[i], dims=(1,2)) reverse(t_res[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
+		
+		heatmap(reverse(abs.(S).*t_res[i] ./5 , dims = 1), clim = (0, 15), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=10)
+		
+	end
+	
+	
+	gif(anim_evolution, "z:\\latest_stress.gif", fps = 12)
+	
+end
+
+# ╔═╡ f597b95c-4a65-4a8f-81cb-79d98b25e209
+plot_animation_stress()
+
 
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
 function show_final_design()
@@ -242,11 +267,14 @@ show_final_design()
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
+# ╠═a3592c76-5fe7-4936-9d02-5ad2ce25a504
 # ╠═4c4e1eaa-d605-47b0-bce9-240f15c6f0aa
 # ╠═95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
 # ╠═b0de4ff7-5004-43f2-9c56-f8a27485754a
-# ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
+# ╠═f597b95c-4a65-4a8f-81cb-79d98b25e209
+# ╠═cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╟─894130b0-3038-44fe-9d1f-46afe8734b98
-# ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
+# ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
+# ╠═c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0
