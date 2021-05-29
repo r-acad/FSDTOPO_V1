@@ -47,7 +47,7 @@ const sigma_all	= 6.0
 const max_all_t = 5.0
 const max_penalty = 1
 		
-scale = 600
+scale = 500
 	
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
@@ -171,7 +171,7 @@ t_iter .*= ((((abs.(S) ./ sigma_all ) .- t_iter) .* 1) .+ t_iter)	./ max_all_t
 		
 #*************************************************************************		
 # apply spatial filter a decreasing number of times function of the iteration number, but proportional to the scale, in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)			
-if iter <  Niter - 2
+if iter <  0 #Niter - 2
 println("       GAUSS Start: " * string(Dates.now()))								
 # matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr is = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS > 0)	
 canvas[1:size(t_iter,1), 1:size(t_iter,2)] .= t_iter
@@ -189,16 +189,13 @@ end # if iter do Gauss
 t_iter .= [min(nt, 1) for nt in t_iter] 		
 		
 # Calculate penalty at this iteration			
-penalty = min(1 + iter / full_penalty_iter, max_penalty) 
+#penalty = min(1 + iter / full_penalty_iter, max_penalty) 
 #t_iter .= max_all_t .* [nt^penalty + 1e-8 for nt in t_iter]				
 		
-#t_iter .= +1e-8 .+ max_all_t .* [((1.0 - cos(pi*i))/2)^penalty for i in t_iter]			
-p = iter / Niter
+#t_iter .= +1e-8 .+ max_all_t .* [((1.0 - cos(pi*i))/2)^penalty for i in t_iter]	
+
 		
-t_iter .= 1.e-8 .+ max_all_t .* [(i > p*.95)*i for i in t_iter]		
-		
-		
-		
+t_iter .= 1.e-8 .+ [(i > (iter / Niter) * .95) * i * max_all_t for i in t_iter]		
 		
 push!(t_res, copy(t_iter))			
 
@@ -236,10 +233,8 @@ plot_animation()
 function plot_animation_stress()
 	
 	anim_evolution = @animate for i in 1:Niter	
-		
-		heatmap([ reverse(t_res[i], dims=(1,2)) reverse(t_res[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
-		
-		heatmap(reverse(abs.(S).*t_res[i] ./5 , dims = 1), clim = (0, 15), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=10)
+			
+	heatmap(reverse(t_res[i] , dims = 1), clim = (0, 5), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=10)
 		
 	end
 	
@@ -275,6 +270,6 @@ show_final_design()
 # ╠═cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╟─894130b0-3038-44fe-9d1f-46afe8734b98
-# ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
-# ╠═c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
-# ╠═4aba92de-9212-11eb-2089-073a71342bb0
+# ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
+# ╟─c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
+# ╟─4aba92de-9212-11eb-2089-073a71342bb0
