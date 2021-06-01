@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.14.6
+# v0.14.7
 
 using Markdown
 using InteractiveUtils
@@ -208,6 +208,9 @@ println("<<< END FSD-TOPO: "  * string(Dates.now()))
 		
 end;#begin
 
+# ╔═╡ 0e7466cf-9467-4e6b-a8ac-85dc7d111206
+println(KE_CQUAD4)
+
 # ╔═╡ c72f9b42-94c7-4377-85cd-5afebbe1d271
 md"""
 ### NOTEBOOK SETUP
@@ -245,8 +248,9 @@ show_final_design()
 # ╠═4c4e1eaa-d605-47b0-bce9-240f15c6f0aa
 # ╠═95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
 # ╠═b0de4ff7-5004-43f2-9c56-f8a27485754a
-# ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
+# ╠═cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
+# ╠═0e7466cf-9467-4e6b-a8ac-85dc7d111206
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
-# ╟─894130b0-3038-44fe-9d1f-46afe8734b98
+# ╠═894130b0-3038-44fe-9d1f-46afe8734b98
 # ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╠═4aba92de-9212-11eb-2089-073a71342bb0

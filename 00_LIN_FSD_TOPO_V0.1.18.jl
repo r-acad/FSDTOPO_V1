@@ -16,7 +16,7 @@ md""" ## LINEAR FSDTOPO"""
 
 # ╔═╡ d88f8062-920f-11eb-3f57-63a28f681c3a
 md"""
-### Version  v 0.1.11 
+### Version  v 0.1.15 
 - 0.0.8 Back to original formulation in 88 lines after attempt to reorder elements in v 0.0.6
 - 0.0.8 OK works in obtaining a meaningful internal loads field
 
@@ -30,6 +30,7 @@ md"""
 - LIN v0.1.3 Code refactored to remove function calls, all OK
 - LIN v0.1.8 All OK
 - LIN v0.1.10  Attempt to use convolution in threads with explitic for loops
+- LIN v0.1.15 All OK, clean up of matrices (back to plain numbers) and general code
 """
 
 # ╔═╡ b23125f6-7118-4ce9-a10f-9c3d3061f8ce
@@ -45,17 +46,17 @@ println(">>> START FSD-TOPO: "  * string(Dates.now()))
 # Set global parameters
 const sigma_all	= 6.0
 const max_all_t = 5.0
-const max_penalty = 1
+const max_penalty = 1.0
 		
-scale = 20
+scale = 50
 	
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
-Niter = 55
+Niter = 50
 
 full_penalty_iter = Niter*0.1
 
-ngauss = min(10, Int(floor(scale / 10)))
+ngauss = min(9, max(1,Int(floor(scale / 30))))
 
 Gauss_kernel = @MArray ones(2*ngauss+1,2*ngauss+1)			
 Gauss_kernel = (collect([exp(- (i^2+j^2) / (2*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss])	)	
@@ -89,6 +90,9 @@ S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing field results (
 
 end;#begin
 
+# ╔═╡ b99d3aa0-8198-495f-9f1b-1353c20ad5ec
+ngauss
+
 # ╔═╡ 7ae886d4-990a-4b14-89d5-5708f805ef93
 md"""
 #### Call FSDTOPO with Niter
@@ -97,38 +101,28 @@ md"""
 # ╔═╡ a3592c76-5fe7-4936-9d02-5ad2ce25a504
 Vol_Frac_pct = sum(t_res[end])/(nelx*nely*max_all_t)*100
 
-# ╔═╡ 95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
-heatmap(reverse(abs.(S).*t_res[end] ./5 , dims = 1), clim = (0, 15), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), dpi = 600)
-
-# ╔═╡ b0de4ff7-5004-43f2-9c56-f8a27485754a
-#plot_animation()
-
-# ╔═╡ f597b95c-4a65-4a8f-81cb-79d98b25e209
- #plot_animation_stress()
-
-
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 begin
-	
+
+
 # Element stiffness matrix reverse-engineered from NASTRAN with E = 1, t = 1, nu=.03
-const AK4 = -5.766129E-01; const BK4 = -6.330645E-01 
-const CK4 =  2.096774E-01 ; const DK4 = 3.931452E-01;  const GK4 = 3.024194E-02	
-KE_CQUAD4 = @SMatrix [ 	 1.0   DK4  AK4 -GK4   BK4 -DK4  CK4  GK4;
-		 				DK4    1.0  GK4  CK4  -DK4  BK4 -GK4  AK4;
-		 				AK4  GK4  1.0   -DK4   CK4 -GK4  BK4  DK4;
-			   	       -GK4  CK4 -DK4  1.0     GK4  AK4  DK4  BK4;
-			 			BK4 -DK4  CK4  GK4   1.0    DK4  AK4 -GK4;
-				   	   -DK4  BK4 -GK4  AK4   DK4  1.0    GK4  CK4;
-			 			CK4 -GK4  BK4  DK4   AK4  GK4  1.0   -DK4;
-			 			GK4  AK4  DK4  BK4  -GK4  CK4 -DK4   1.0  ]	
-	
-# Matrix relating cartesian stress components (sxx, syy, sxy) with nodal displacements in CQUAD4 element, reverse-engineered from NASTRAN with E = 1, t = 1, nu=.03
-const AS4 = -1.209677E+00; const BS4 = -3.629032E-01; const CS4 = -4.233871E-01  	
-SU_CQUAD4 = @SMatrix [ 	 AS4  BS4  -AS4 BS4 -AS4 -BS4  AS4 -BS4;
-						 BS4  AS4  -BS4 AS4 -BS4 -AS4  BS4 -AS4;
-						 CS4  CS4  CS4 -CS4 -CS4 -CS4 -CS4  CS4]
+ KE_CQUAD4 = @SMatrix [
+ 1.0 0.3931452 -0.5766129 -0.03024194 -0.6330645 -0.3931452 0.2096774 0.03024194;  0.3931452 1.0 0.03024194 0.2096774 -0.3931452 -0.6330645 -0.03024194 -0.5766129; -0.5766129 0.03024194 1.0 -0.3931452 0.2096774 -0.03024194 -0.6330645 0.3931452; -0.03024194 0.2096774 -0.3931452 1.0 0.03024194 -0.5766129 0.3931452 -0.6330645; -0.6330645 -0.3931452 0.2096774 0.03024194 1.0 0.3931452 -0.5766129 -0.03024194; -0.3931452 -0.6330645 -0.03024194 -0.5766129 0.3931452 1.0 0.03024194 0.2096774;  0.2096774 -0.03024194 -0.6330645 0.3931452 -0.5766129 0.03024194 1.0 -0.3931452;  0.03024194 -0.5766129 0.3931452 -0.6330645 -0.03024194 0.2096774 -0.3931452 1.0]
+
+# Matrix relating cartesian stress components (sxx, syy, sxy) with nodal displacement
+SU_CQUAD4 = @SMatrix [
+-1.209677 -0.3629032 1.209677 -0.3629032 1.209677 0.3629032 -1.209677 0.3629032; -0.3629032 -1.209677 0.3629032 -1.209677 0.3629032 1.209677 -0.3629032 1.209677; -0.4233871 -0.4233871 -0.4233871 0.4233871 0.4233871 0.4233871 0.4233871 -0.4233871]
+
 	
 end;#begin
+
+# ╔═╡ c72f9b42-94c7-4377-85cd-5afebbe1d271
+md"""
+### NOTEBOOK SETUP
+"""
+
+# ╔═╡ 5c4c2c37-9873-4471-abd9-3b9c72ba8492
+dpi_quality = 120
 
 # ╔═╡ 87be1f09-c729-4b1a-b05c-48c79039390d
 begin
@@ -174,11 +168,15 @@ end # for y
 		
 		
 # Obtain new thickness by FSD algorithm	and normalize		
-t_iter .*= ((((abs.(S) ./ sigma_all ) .- t_iter) .* 1) .+ t_iter)	./ max_all_t
+#t_iter .*= ((((abs.(S) ./ sigma_all ) .- t_iter) .* 1) .+ t_iter)	./ max_all_t
+
+t_iter .*= (abs.(S) ./ sigma_all ) 	./ max_all_t		
+		
+		
 		
 #*************************************************************************		
 # apply spatial filter a decreasing number of times function of the iteration number, but proportional to the scale, in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)			
-if iter <  0 #Niter - 2
+if iter <  Niter # / 2
 println("       GAUSS Start: " * string(Dates.now()))								
 # matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr is = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS > 0)	
 canvas[1:size(t_iter,1), 1:size(t_iter,2)] .= t_iter
@@ -193,7 +191,7 @@ end # if iter do Gauss
 		
 		
 # Limit thickness to maximum			
-t_iter .= [min(nt, 1) for nt in t_iter] 		
+t_iter .= [min(nt, 1.0) for nt in t_iter] 		
 		
 # Calculate penalty at this iteration			
 #penalty = min(1 + iter / full_penalty_iter, max_penalty) 
@@ -202,12 +200,13 @@ t_iter .= [min(nt, 1) for nt in t_iter]
 #t_iter .= +1e-8 .+ max_all_t .* [((1.0 - cos(pi*i))/2)^penalty for i in t_iter]	
 
 		
-t_iter .= 1.e-8 .+ [(i > (iter / Niter) * .95) * i * max_all_t for i in t_iter]		
+t_iter .= 1.e-9 .+ [(i > ((iter / Niter) * .95)) * i * max_all_t for i in t_iter]		
 		
 push!(t_res, copy(t_iter))			
 
-#curr_thick_plot = heatmap(reverse(t_iter, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " Iter: "*string(iter) *" Ngauss: "*string(ngauss) *" Scale: "*string(scale))			
-#png(curr_thick_plot, "z:\\thick"*string(iter))		
+curr_thick_plot = heatmap(reverse(t_iter, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " Iter: "*string(iter) *" Ngauss: "*string(ngauss) *" Scale: "*string(scale), dpi=dpi_quality, grids=false, tickfontsize=4, titlefontsize = 4)			
+
+png(curr_thick_plot, "z:\\thick"*string(iter))		
 		
 
 end	# for topo iter
@@ -216,40 +215,45 @@ println("<<< END FSD-TOPO: "  * string(Dates.now()))
 		
 end;#begin
 
-# ╔═╡ c72f9b42-94c7-4377-85cd-5afebbe1d271
-md"""
-### NOTEBOOK SETUP
-"""
+# ╔═╡ 95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
+heatmap(reverse(abs.(S).*t_res[end] ./5 , dims = 1), clim = (0, 15), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), dpi=dpi_quality, grids=false, showaxis=:y, tickfontsize=4)
 
 # ╔═╡ 7f47d8ef-98be-416d-852f-97fbaa287eec
 function plot_animation()
 	
 	anim_evolution = @animate for i in 1:Niter	
-		heatmap([ reverse(t_res[i], dims=(1,2)) reverse(t_res[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=3)
+		heatmap([ reverse(t_res[i], dims=(1,2)) reverse(t_res[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " NIter: "*string(Niter) *" Ngauss: "*string(ngauss) *" Scale: "*string(scale), fps=3, dpi=dpi_quality, grids=false, tickfontsize=4 , titlefontsize = 4)
 	end
 	
 	
-	gif(anim_evolution, "z:\\latest.gif", fps = 12)
+	gif(anim_evolution, "z:\\00_latest_thickness.gif", fps = 12)
 	
 end
+
+# ╔═╡ b0de4ff7-5004-43f2-9c56-f8a27485754a
+plot_animation()
 
 # ╔═╡ c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
 function plot_animation_stress()
 	
 	anim_evolution = @animate for i in 1:Niter	
 			
-	heatmap(reverse(t_res[i] , dims = 1), clim = (0, 5), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), fps=10)
+	heatmap(reverse(t_res[i] , dims = 1), clim = (0, 5), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " NIter: "*string(Niter) *" Ngauss: "*string(ngauss) *" Scale: "*string(scale), fps=10, dpi=dpi_quality, grids=false, tickfontsize=4 , titlefontsize = 4)
 		
 	end
 	
 	
-	gif(anim_evolution, "z:\\latest_stress.gif", fps = 12)
+	gif(anim_evolution, "z:\\00_latest_stress.gif", fps = 8)
 	
 end
 
+# ╔═╡ f597b95c-4a65-4a8f-81cb-79d98b25e209
+plot_animation_stress( )
+
+
 # ╔═╡ 4aba92de-9212-11eb-2089-073a71342bb0
 function show_final_design()
-	heatmap(reverse(t_res[end].* (sign.(S)), dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " NIter: "*string(Niter) *" Ngauss: "*string(ngauss) *" Scale: "*string(scale) )
+	heatmap(reverse(t_res[end].* (sign.(S)), dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " NIter: "*string(Niter) *" Ngauss: "*string(ngauss) *" Scale: "*string(scale) , dpi=dpi_quality, grids=false, tickfontsize=4, titlefontsize = 4)
 end	
 
 # ╔═╡ 4c4e1eaa-d605-47b0-bce9-240f15c6f0aa
@@ -260,6 +264,7 @@ show_final_design()
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
 # ╠═f60365a0-920d-11eb-336a-bf5953215934
+# ╠═b99d3aa0-8198-495f-9f1b-1353c20ad5ec
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
 # ╠═a3592c76-5fe7-4936-9d02-5ad2ce25a504
@@ -267,9 +272,10 @@ show_final_design()
 # ╠═95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
 # ╠═b0de4ff7-5004-43f2-9c56-f8a27485754a
 # ╠═f597b95c-4a65-4a8f-81cb-79d98b25e209
-# ╠═cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
+# ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
-# ╟─894130b0-3038-44fe-9d1f-46afe8734b98
-# ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
-# ╟─c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
-# ╟─4aba92de-9212-11eb-2089-073a71342bb0
+# ╠═5c4c2c37-9873-4471-abd9-3b9c72ba8492
+# ╠═894130b0-3038-44fe-9d1f-46afe8734b98
+# ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
+# ╠═c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
+# ╠═4aba92de-9212-11eb-2089-073a71342bb0
