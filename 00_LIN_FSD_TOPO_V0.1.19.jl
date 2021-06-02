@@ -39,7 +39,13 @@ md"""
 """
 
 # ╔═╡ 179caf2b-67e9-417a-8c30-6d370af12182
-plot([Int(ceil( (i/1000 )^3 * (500 / 20) ))  for i in 0:1:1000   ])
+plot([Int(ceil( (i/1000 )^.25 * (500 / 20) ))  for i in 0:1:1000   ])
+
+# ╔═╡ 02a73612-ad33-4d5b-a4c6-c3e8b7f5c477
+A = [1 0 ; 0 1 ]
+
+# ╔═╡ 5e2dc37c-c07c-45da-a984-f1f8212fff21
+sum(abs.(eigvals(A)))
 
 # ╔═╡ 7ae886d4-990a-4b14-89d5-5708f805ef93
 md"""
@@ -79,15 +85,15 @@ const sigma_all	= 6.0
 const max_all_t = 5.0
 const max_penalty = 1.0
 		
-scale = 80
+scale = 800
 	
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
-Niter = 80
+Niter = 1000
 
 full_penalty_iter = Niter*0.1
 
-conv_scale = 15	
+conv_scale = 10	
 
 			
 println("       Set Forces: " * string(Dates.now()))		
@@ -127,7 +133,7 @@ t_iter = ones(Float64,1:nely,1:nelx).*max_all_t
 for iter in 1:Niter
 		
 		
-ngauss = Int(ceil( (iter/Niter ) ^3 * (scale / conv_scale) ))
+ngauss = Int(ceil( (iter/Niter ) ^1.0 * (scale / conv_scale) ))
 
 Gauss_kernel = @MArray ones(2*ngauss+1,2*ngauss+1)			
 Gauss_kernel = (collect([exp(- (i^2+j^2) / (2*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss])	)	
@@ -158,12 +164,16 @@ Ue = U[[2*n1-1;2*n1; 2*n2-1;2*n2; 2*n2+1;2*n2+2; 2*n1+1;2*n1+2],1]
 		
 sxx, syy, sxy = (SU_CQUAD4 * Ue) .* nelx  # Element stress vector in x, y coordinates. Scaled by mesh size	
 # Principal stresses
-s1 = 0.5 * (sxx + syy + √((sxx - syy) ^ 2 + 4 * sxy ^ 2))
-s2 = 0.5 * (sxx + syy - √((sxx - syy) ^ 2 + 4 * sxy ^ 2))				
-ssign = abs(s1) < abs(s2) ? 1 : -1							
-S[y, x] = ssign * √(s1 ^ 2 + s2 ^ 2 - s1 * s2)  # Von Mises stress in plane stress case
+#s1 = 0.5 * (sxx + syy + √((sxx - syy) ^ 2 + 4 * sxy ^ 2))
+#s2 = 0.5 * (sxx + syy - √((sxx - syy) ^ 2 + 4 * sxy ^ 2))				
+#ssign = abs(s1) < abs(s2) ? 1 : -1							
+#S[y, x] = ssign * √(s1 ^ 2 + s2 ^ 2 - s1 * s2)  # Von Mises stress in plane stress case
 				
 #S[y, x] = ssign * (abs(s1) + abs(s2))
+				
+				
+S[y, x] =  sum(abs.(eigvals([sxx sxy ; sxy syy  ]))) # Michell criterion, sum of absolute values of principal stresses, eigenvalues of 2D stress tensor
+				
 				
 end # for x
 end # for y
@@ -173,13 +183,15 @@ end # for y
 # Obtain new thickness by FSD algorithm	and normalize		
 #t_iter .*= ((((abs.(S) ./ sigma_all ) .- t_iter) .* 1) .+ t_iter)	./ max_all_t
 
-t_iter .*= (abs.(S) ./ (sigma_all * max_all_t) )
+#t_iter .*= (abs.(S) ./ (sigma_all * max_all_t) ) # if using signs
+		
+t_iter .*= S ./ (sigma_all * max_all_t) # Stress value is always positive
 		
 		
 		
 #*************************************************************************		
 # apply spatial filter a decreasing number of times function of the iteration number, but proportional to the scale, in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)			
-if iter <  11111110 #Niter # / 2
+#if iter <  11111110 #Niter # / 2
 println("       GAUSS Start: " * string(Dates.now()))								
 # matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr is = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS > 0)	
 canvas[1:size(t_iter,1), 1:size(t_iter,2)] .= t_iter
@@ -189,7 +201,7 @@ t_iter .= [sum( canvas[i .+ CartesianIndices((-ngauss:ngauss, -ngauss:ngauss))] 
  sum((canvas[i .+ CartesianIndices((-ngauss:ngauss, -ngauss:ngauss))] .!== 0.0)  .* Gauss_kernel) for i in CartesianIndices(t_iter)]			
 			
 println("       GAUSS End: " * string(Dates.now()))	
-end # if iter do Gauss
+#end # if iter do Gauss
 #*************************************************************************	
 		
 		
@@ -203,7 +215,7 @@ t_iter .= [min(nt, 1.0) for nt in t_iter]
 #t_iter .= +1e-8 .+ max_all_t .* [((1.0 - cos(pi*i))/2)^penalty for i in t_iter]	
 
 		
-t_iter .= 1.e-9 .+ [(i > ((iter / Niter) * .97)) * i * max_all_t for i in t_iter]		
+t_iter .= [(i > ((iter / Niter) * .95)) * i * max_all_t + 1.e-9 for i in t_iter]		
 		
 push!(t_res, copy(t_iter))			
 
@@ -270,6 +282,8 @@ show_final_design()
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
 # ╠═179caf2b-67e9-417a-8c30-6d370af12182
+# ╠═02a73612-ad33-4d5b-a4c6-c3e8b7f5c477
+# ╠═5e2dc37c-c07c-45da-a984-f1f8212fff21
 # ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
 # ╠═a3592c76-5fe7-4936-9d02-5ad2ce25a504
