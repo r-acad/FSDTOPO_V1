@@ -33,16 +33,6 @@ md"""
 - LIN v0.1.21 Calculation of element stresses now done directly using eigenvalues of element stress tensor. Last version containing code remains of classical penalty formulation, from this version onwards only l0 threshold is kept
 """
 
-# ╔═╡ b23125f6-7118-4ce9-a10f-9c3d3061f8ce
-md"""
-### Setup model
-"""
-
-# ╔═╡ 7ae886d4-990a-4b14-89d5-5708f805ef93
-md"""
-#### FSDTOPO with Niter
-"""
-
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 begin
 
@@ -62,7 +52,7 @@ end;#begin
 
 # ╔═╡ c72f9b42-94c7-4377-85cd-5afebbe1d271
 md"""
-### NOTEBOOK SETUP
+#### NOTEBOOK SETUP
 """
 
 # ╔═╡ 5c4c2c37-9873-4471-abd9-3b9c72ba8492
@@ -74,18 +64,17 @@ begin
 println(">>> START FSD-TOPO: "  * string(Dates.now()))
 	
 # Set global parameters
-Niter = 25	
-		
+scale = 500
+Niter = 1000
+	
+	
 const sigma_all	= 6.0
 const max_all_t = 5.0
-const max_penalty = 1.0
-full_penalty_iter = Niter*0.1	
-			
-scale = 40
+
 	
 nelx = 6*scale ; nely = 2*scale  #mesh size
 
-conv_scale = 10
+conv_scale = 2  # % of nelx
 			
 println("       Set Forces: " * string(Dates.now()))		
 	
@@ -109,6 +98,9 @@ iK = kron(edofMat,ones(Int64,8,1))'[:]
 jK = kron(edofMat,ones(Int64,1,8))'[:]
  	
 t_res = []	# Array of arrays with iteration history of thickness	
+S_res = []	# Array of arrays with iteration history of stress	
+vol_frac_array = [] # Array of volume fraction evolution	
+compliance_array = [] # Array of compliance evolution		
 	
 S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing element stresses	
 	
@@ -120,8 +112,8 @@ t_iter = ones(Float64,1:nely,1:nelx).*max_all_t
 # Loop niter times the FSD-TOPO algorithm		
 for iter in 1:Niter
 		
-ngauss = min(40, Int(ceil( (iter/Niter ) ^2.0 * (scale / conv_scale) ))) # 40 is a safe limit for a static array in a Ryzen9, reduce or remove mutable static array when publishing
-
+ngauss = min(40, Int(ceil(((iter / Niter))* nelx * conv_scale/100) )) # 40 is a safe limit for a static array in a Ryzen9, reduce or remove mutable static array when publishing
+		
 		
 println("       Set Canvas: " * string(Dates.now())  )
 		
@@ -160,13 +152,9 @@ t_iter .*= (abs.(S) ./ (sigma_all * max_all_t) ) # FSD algorithm, using absolute
 		
 		
 #*************************************************************************		
-# apply spatial filter a decreasing number of times function of the iteration number, but proportional to the scale, in order to remove mesh size dependency of solution (effectively increasing the variance of the Gauss kernel)			
-#if iter <  11111110 #Niter # / 2
-		
+# apply spatial filter 
 println("       GAUSS Start: " * string(Dates.now()) * " Ngauss = " * string(ngauss))
-		
 	
-
 #Gauss_kernel = @MArray ones(2*ngauss+1,2*ngauss+1)			
 Gauss_kernel = (collect([exp(- (i^2+j^2) / (2*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss])	)			
 		
@@ -178,23 +166,24 @@ t_iter .= [sum( canvas[i .+ CartesianIndices((-ngauss:ngauss, -ngauss:ngauss))] 
  sum((canvas[i .+ CartesianIndices((-ngauss:ngauss, -ngauss:ngauss))] .!== 0.0)  .* Gauss_kernel) for i in CartesianIndices(t_iter)]			
 		
 println("       GAUSS End: " * string(Dates.now()))	
-#end # if iter do Gauss
 #*************************************************************************	
 		
 		
 # Limit thickness to maximum			
 t_iter .= [min(nt, 1.0) for nt in t_iter] 		
-		
-# Calculate penalty at this iteration			
-#penalty = min(1 + iter / full_penalty_iter, max_penalty) 
-#t_iter .= max_all_t .* [nt^penalty + 1e-8 for nt in t_iter]				
-		
-#t_iter .= +1e-8 .+ max_all_t .* [((1.0 - cos(pi*i))/2)^penalty for i in t_iter]	
+
+t_iter .= [(t > (min((iter / Niter), .95))) * t * max_all_t + 1.e-9 for t in t_iter]		
 
 		
-t_iter .= [(i > ((iter / Niter) * .95)) * i * max_all_t + 1.e-9 for i in t_iter]		
+Vol_Frac_pct = sum(t_iter)/(nelx*nely*max_all_t)*100
+push!(vol_frac_array, 	Vol_Frac_pct)	
 		
-push!(t_res, copy(t_iter))			
+push!(compliance_array, U[2])
+		
+push!(t_res, copy(t_iter))	
+push!(S_res, copy(S))			
+
+		
 
 curr_thick_plot = heatmap(reverse(t_iter, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " Iter: "*string(iter) *" Ngauss: "*string(ngauss) *" Scale: "*string(scale), dpi=dpi_quality, grids=false, tickfontsize=4, titlefontsize = 4)			
 
@@ -207,11 +196,17 @@ println("<<< END FSD-TOPO: "  * string(Dates.now()))
 		
 end;#begin
 
-# ╔═╡ d733a12b-ebc0-46b2-a9ef-9955f4abac71
-size(t_iter)
+# ╔═╡ a448b803-3925-4d5b-856b-b62dfaa3c3a9
+plot(vol_frac_array)
 
-# ╔═╡ a3592c76-5fe7-4936-9d02-5ad2ce25a504
-Vol_Frac_pct = sum(t_res[end])/(nelx*nely*max_all_t)*100
+# ╔═╡ 997b6acc-67b7-4c68-8a7a-ee07adabede6
+plot(compliance_array)
+
+# ╔═╡ 47bc6b2e-a348-49c3-bbf4-3c49e95688af
+plot([min(40, Int(ceil(((iter / (Niter*.6)))* nelx * conv_scale/100) )) for iter in 1:Niter], legend=false)
+
+# ╔═╡ 8169a82e-cc65-4ee0-abed-e9b2b100ffc4
+conv_scale
 
 # ╔═╡ 8524f502-b370-4ccd-ae03-79d86d2fde71
 begin
@@ -225,13 +220,16 @@ begin
 end
 
 # ╔═╡ 95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
-heatmap(reverse(abs.(S).*t_res[end] ./5 , dims = 1), clim = (0, 15), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), dpi=dpi_quality, grids=false, showaxis=:y, tickfontsize=4)
+heatmap(reverse(abs.(S).*t_res[end] , dims = 1), clim = (0, 80), aspect_ratio = 1, c=cgrad([:black, :blue, :cyan, :green, :yellow, :orange, :red, :white], 13),   dpi=dpi_quality, grids=false, showaxis=:y, tickfontsize=4, background_colour = :black)
 
 # ╔═╡ 7f47d8ef-98be-416d-852f-97fbaa287eec
 function plot_animation()
 	
 	anim_evolution = @animate for i in 1:Niter	
+		
 		heatmap([ reverse(t_res[i], dims=(1,2)) reverse(t_res[i], dims=1)], aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " NIter: "*string(Niter) *" conv_scale: "*string(conv_scale) *" Scale: "*string(scale), fps=3, dpi=dpi_quality, grids=false, tickfontsize=4 , titlefontsize = 4)
+	
+	
 	end
 	
 	
@@ -241,6 +239,101 @@ end
 
 # ╔═╡ b0de4ff7-5004-43f2-9c56-f8a27485754a
 plot_animation()
+
+# ╔═╡ 4048f21a-b68e-4afc-a473-f36d6aa7baa2
+function plot_thickness_animation_black()
+	
+anim_evolution = @animate for i in 1:Niter	
+		
+heatmap([ reverse(t_res[i], dims=(1,2)) reverse(t_res[i], dims=1)], 
+aspect_ratio = 1, 
+#c=cgrad([:black, :blue, :cyan, :green, :yellow, :orange, :red, :white], 13), 	
+c=cgrad([:black, :white], 13), 				
+title= string(Dates.now())* " Iter: "*string(i) *" /" *string(Niter) *" conv_scale: "*string(conv_scale) *" nelx: "*string(nelx) *" nely: "*string(nely)           , 
+			
+fps=6, 
+dpi=dpi_quality, 
+grids=false, 
+tickfontsize=10, 
+titlefontsize = 14, 
+background_colour = :black, 
+size =(1920, 1080), 
+legend=false, 
+showaxis=:y, 
+yaxis=nothing)
+
+end
+	
+	
+	gif(anim_evolution, "z:\\00_symm_thickness_anim_black.gif", fps = 6)
+	
+end
+
+# ╔═╡ cb03641d-22fb-4da7-97cb-f676a5e6b386
+plot_thickness_animation_black()
+
+# ╔═╡ 6cc8611b-a04d-43d4-8451-d6512f9719d6
+function plot_signed_stress_animation_black()
+	
+anim_evolution = @animate for i in 1:Niter	
+		
+heatmap(reverse(S_res[i].*t_res[i], dims=1), 
+aspect_ratio = 1, 
+c=cgrad([:blue, :black, :red], 13), 	
+	
+clim = (-20, 20),			
+title= string(Dates.now())* " Iter: "*string(i) *" /" *string(Niter) *" conv_scale: "*string(conv_scale) *" nelx: "*string(nelx) *" nely: "*string(nely)           , 
+legend=false,			
+fps=6, 
+dpi=dpi_quality, 
+grids=false, 
+tickfontsize=10, 
+titlefontsize = 14, 
+background_colour = :black, 
+size =(1920, 1080),  
+showaxis=:y, 
+yaxis=nothing)
+
+end
+	
+	
+	gif(anim_evolution, "z:\\00_signed_stress_anim_black.gif", fps = 6)
+	
+end
+
+# ╔═╡ 27e8587d-4e82-48ce-aa7a-38a30c2780a3
+plot_signed_stress_animation_black()
+
+# ╔═╡ f8d64921-0594-4b69-b7d5-c5d42641c504
+function plot_abs_stress_animation_black()
+	
+anim_evolution = @animate for i in 1:Niter	
+		
+heatmap(reverse(abs.(S_res[i].*t_res[i]), dims=1), 
+aspect_ratio = 1, 
+c=cgrad([:black, :blue, :cyan, :green, :yellow, :orange, :red, :white], 13), 	
+clim = (0, 50),			
+title= string(Dates.now())* " Iter: "*string(i) *" /" *string(Niter) *" conv_scale: "*string(conv_scale) *" nelx: "*string(nelx) *" nely: "*string(nely)           , 
+			
+fps=6, 
+dpi=dpi_quality, 
+grids=false, 
+tickfontsize=10, 
+titlefontsize = 14, 
+background_colour = :black, 
+size =(1920, 1080),  
+showaxis=:y, 
+yaxis=nothing)
+
+end
+	
+	
+	gif(anim_evolution, "z:\\00_abs_stress_anim_black.gif", fps = 6)
+	
+end
+
+# ╔═╡ 5d75ae57-4e3e-46c6-8b3a-42160ebf0d71
+plot_abs_stress_animation_black()
 
 # ╔═╡ c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
 function plot_animation_stress()
@@ -271,20 +364,26 @@ show_final_design()
 # ╔═╡ Cell order:
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
-# ╟─b23125f6-7118-4ce9-a10f-9c3d3061f8ce
-# ╟─7ae886d4-990a-4b14-89d5-5708f805ef93
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
-# ╠═d733a12b-ebc0-46b2-a9ef-9955f4abac71
-# ╠═a3592c76-5fe7-4936-9d02-5ad2ce25a504
+# ╠═a448b803-3925-4d5b-856b-b62dfaa3c3a9
+# ╠═997b6acc-67b7-4c68-8a7a-ee07adabede6
+# ╠═47bc6b2e-a348-49c3-bbf4-3c49e95688af
+# ╠═8169a82e-cc65-4ee0-abed-e9b2b100ffc4
 # ╠═8524f502-b370-4ccd-ae03-79d86d2fde71
 # ╟─4c4e1eaa-d605-47b0-bce9-240f15c6f0aa
 # ╠═95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
 # ╠═b0de4ff7-5004-43f2-9c56-f8a27485754a
 # ╠═f597b95c-4a65-4a8f-81cb-79d98b25e209
-# ╟─cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
+# ╠═cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
-# ╠═5c4c2c37-9873-4471-abd9-3b9c72ba8492
+# ╟─5c4c2c37-9873-4471-abd9-3b9c72ba8492
 # ╠═894130b0-3038-44fe-9d1f-46afe8734b98
-# ╠═7f47d8ef-98be-416d-852f-97fbaa287eec
-# ╠═c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
-# ╠═4aba92de-9212-11eb-2089-073a71342bb0
+# ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
+# ╟─cb03641d-22fb-4da7-97cb-f676a5e6b386
+# ╟─4048f21a-b68e-4afc-a473-f36d6aa7baa2
+# ╟─27e8587d-4e82-48ce-aa7a-38a30c2780a3
+# ╟─6cc8611b-a04d-43d4-8451-d6512f9719d6
+# ╟─5d75ae57-4e3e-46c6-8b3a-42160ebf0d71
+# ╟─f8d64921-0594-4b69-b7d5-c5d42641c504
+# ╟─c8ac6bd4-1315-4c85-980d-ad5b2a3141b1
+# ╟─4aba92de-9212-11eb-2089-073a71342bb0
