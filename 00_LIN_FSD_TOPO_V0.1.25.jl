@@ -33,6 +33,12 @@ md"""
 - LIN v0.1.21 Calculation of element stresses now done directly using eigenvalues of element stress tensor. Last version containing code remains of classical penalty formulation, from this version onwards only l0 threshold is kept
 """
 
+# ╔═╡ 729c7557-0694-46a9-90bf-65575955702b
+ngauss = 6
+
+# ╔═╡ 1dbe1789-f38c-4a7f-82d3-66316b24b9c6
+heatmap((collect([exp(- (i^2+j^2) / (1*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss])	)	)
+
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 begin
 
@@ -41,7 +47,7 @@ begin
  KE_CQUAD4 = @SMatrix [
  1.0 0.3931452 -0.5766129 -0.03024194 -0.6330645 -0.3931452 0.2096774 0.03024194;  0.3931452 1.0 0.03024194 0.2096774 -0.3931452 -0.6330645 -0.03024194 -0.5766129; -0.5766129 0.03024194 1.0 -0.3931452 0.2096774 -0.03024194 -0.6330645 0.3931452; -0.03024194 0.2096774 -0.3931452 1.0 0.03024194 -0.5766129 0.3931452 -0.6330645; -0.6330645 -0.3931452 0.2096774 0.03024194 1.0 0.3931452 -0.5766129 -0.03024194; -0.3931452 -0.6330645 -0.03024194 -0.5766129 0.3931452 1.0 0.03024194 0.2096774;  0.2096774 -0.03024194 -0.6330645 0.3931452 -0.5766129 0.03024194 1.0 -0.3931452;  0.03024194 -0.5766129 0.3931452 -0.6330645 -0.03024194 0.2096774 -0.3931452 1.0]
 
-# Matrix relating cartesian stress components (sxx, sxy, syy, sxy) with nodal displacements
+# Matrix relating cartesian stress components [sxx, sxy; syy, sxy] with nodal displacements
 SU_CQUAD4 = @SMatrix [
 -1.209677 -0.3629032 1.209677 -0.3629032 1.209677 0.3629032 -1.209677 0.3629032; 
 -0.4233871 -0.4233871 -0.4233871 0.4233871 0.4233871 0.4233871 0.4233871 -0.4233871;
@@ -64,59 +70,53 @@ begin
 println(">>> START FSD-TOPO: "  * string(Dates.now()))
 	
 # Set global parameters
-scale = 50
-Niter = 100
+scale = 30
+Niter = 40
 	
+const sigma_all	= 6.0 # allowable sigma 
+const max_all_t = 5.0 # max. thickness
+
+conv_scale = 1  # % of nelx
+
+nelx = 6*scale ; nely = 2*scale  #mesh size		
 	
-const sigma_all	= 6.0
-const max_all_t = 5.0
+println("       Start TOPO: " * string(Dates.now()))		
 
 	
-nelx = 6*scale ; nely = 2*scale  #mesh size
-
-conv_scale = 2  # % of nelx
-			
-println("       Set Forces: " * string(Dates.now()))		
-	
-	
-F = zeros(Float64,  2*(nely+1)*(nelx+1)) # Initialize external forces vector
+# Initialize external forces vector	
+F = zeros(Float64,  2*(nely+1)*(nelx+1)) 
 F[2] = -1.0	   # Set applied external force	
+
+# Set boundary conditions	
+fixeddofs = [(1:2:2*(nely+1));  2*(nely+1)*(nelx+1) ]  
 	
-fixeddofs = [(1:2:2*(nely+1));  2*(nely+1)*(nelx+1) ]  # Set boundary conditions
-	
-U = zeros(Float64,  2*(nely+1)*(nelx+1))	# Initialize global displacements
+U = zeros(Float64,  2*(nely+1)*(nelx+1)) # Initialize global displacements
 	
 freedofs  = setdiff([1:( 2*(nely+1)*(nelx+1))...],fixeddofs) # Free DoFs for solving the displacements
-
-nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx) # Array with node numbers
-	
+nodenrs = reshape(1:(1+nelx)*(1+nely),1+nely,1+nelx) # Array with node numbers	
 edofVec = ((nodenrs[1:end-1,1:end-1].*2).+1)[:] # Vector of element DoFs
-
 edofMat = repeat(edofVec,1,8) + repeat([-1 -2 1 0 2*nely.+[3 2 1 0]],nelx*nely)	# order changed to match a K of a 2x1 mesh from 99 lines
 	
 iK = kron(edofMat,ones(Int64,8,1))'[:]
 jK = kron(edofMat,ones(Int64,1,8))'[:]
- 	
-t_res = []	# Array of arrays with iteration history of thickness	
-S_res = []	# Array of arrays with iteration history of stress	
-vol_frac_array = [] # Array of volume fraction evolution	
-compliance_array = [] # Array of compliance evolution		
 	
 S = zeros(Float64,1:nely,1:nelx)  # Initialize matrix containing element stresses	
 	
 # Initialize iterated thickness in domain and set to maximum thickness
 t_iter = ones(Float64,1:nely,1:nelx).*max_all_t 	
+
+t_res = []	# Array of arrays with iteration history of thickness	
+S_res = []	# Array of arrays with iteration history of stress	
+vol_frac_array = [] # Array of volume fraction evolution	
+compliance_array = [] # Array of compliance evolution		
 	
-		
 	
-# Loop niter times the FSD-TOPO algorithm		
+# ********* Loop niter times the FSD-TOPO algorithm *********
 for iter in 1:Niter
 		
 ngauss = min(40, Int(ceil(((iter / Niter))* nelx * conv_scale/100) )) # 40 is a safe limit for a static array in a Ryzen9, reduce or remove mutable static array when publishing
-		
-		
-println("       Set Canvas: " * string(Dates.now())  )
-		
+
+# Initialize "canvas" (domain surrounded by a frame of 0.0 values)		
 canvas = OffsetArray(zeros(Float64, 1:nely+2*ngauss, 1:nelx+2*ngauss), (-ngauss+1):nely+ngauss,(-ngauss+1):nelx+ngauss)	
 		
 
@@ -142,7 +142,7 @@ println(" Calculate internal loads "  * string(Dates.now()))
 n2 = (nely+1)* x +y	; n1 = n2 - (nely+1)
 Ue = U[[2*n1-1;2*n1; 2*n2-1;2*n2; 2*n2+1;2*n2+2; 2*n1+1;2*n1+2],1]
 		
-elm_princ_stress_vec = eigvals(reshape((SU_CQUAD4 * Ue) .* nelx , 2, 2)) # Vector of element principal stresses (eigenvalues of stress tensor). Scaled by mesh size	
+elm_princ_stress_vec = eigvals(reshape((SU_CQUAD4 * Ue) .* nelx , 2, 2)) # Vector of element principal stresses, eigenvalues of the stress tensor. Scaled by mesh size	
 S[y, x] = sign(sum(elm_princ_stress_vec)) * sum(abs.(elm_princ_stress_vec))
 				
 end # for y
@@ -155,8 +155,8 @@ t_iter .*= (abs.(S) ./ (sigma_all * max_all_t) ) # FSD algorithm, using absolute
 # apply spatial filter 
 println("       GAUSS Start: " * string(Dates.now()) * " Ngauss = " * string(ngauss))
 	
-#Gauss_kernel = @MArray ones(2*ngauss+1,2*ngauss+1)			
-Gauss_kernel = (collect([exp(- (i^2+j^2) / (2*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss])	)			
+Gauss_kernel = @MArray ones(2*ngauss+1,2*ngauss+1)			
+Gauss_kernel = (collect([exp(- (i^2+j^2) / (1*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss])	)			
 		
 # matr is convolved with kern. The key assumption is that the padding elements are 0 and no element in the "interior" of matr is = 0 (THIS IS A STRONG ASSUMPTION IN THE GENERAL CASE BUT VALID IN FSD-TOPO AS THERE IS A MINIMUM ELEMENT THICKNESS > 0)	
 canvas[1:size(t_iter,1), 1:size(t_iter,2)] .= t_iter
@@ -168,13 +168,13 @@ t_iter .= [sum( canvas[i .+ CartesianIndices((-ngauss:ngauss, -ngauss:ngauss))] 
 println("       GAUSS End: " * string(Dates.now()))	
 #*************************************************************************	
 		
-		
-# Limit thickness to maximum			
-t_iter .= [min(nt, 1.0) for nt in t_iter] 		
 
-t_iter .= [(t > (min((iter / Niter), .95))) * t * max_all_t + 1.e-9 for t in t_iter]		
+# Limit thickness to maximum and force progressive l0 threshold		
+t_iter .= [((t > (min((iter / Niter), .95))) * min(t, 1.0) + 1.e-9)* max_all_t
+			for t in t_iter]		
 
 		
+# Store intermediate results		
 Vol_Frac_pct = sum(t_iter)/(nelx*nely*max_all_t)*100
 push!(vol_frac_array, 	Vol_Frac_pct)	
 		
@@ -183,9 +183,8 @@ push!(compliance_array, U[2])
 push!(t_res, copy(t_iter))	
 push!(S_res, copy(S))			
 
-		
-
-curr_thick_plot = heatmap(reverse(t_iter, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " Iter: "*string(iter) *" Ngauss: "*string(ngauss) *" Scale: "*string(scale), dpi=dpi_quality, grids=false, tickfontsize=4, titlefontsize = 4)			
+# Save current thickness plot
+curr_thick_plot = heatmap(reverse(t_iter, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " Iter: "*string(iter) *" ngauss: "*string(ngauss) *" Scale: "*string(scale), dpi=dpi_quality, grids=false, tickfontsize=4, titlefontsize = 4)			
 
 png(curr_thick_plot, "z:\\thick"*string(iter))		
 		
@@ -203,7 +202,8 @@ plot(vol_frac_array)
 plot(compliance_array)
 
 # ╔═╡ 47bc6b2e-a348-49c3-bbf4-3c49e95688af
-plot([min(40, Int(ceil(((iter / (Niter*.6)))* nelx * conv_scale/100) )) for iter in 1:Niter], legend=false)
+plot([min(40, Int(ceil(((iter / (Niter)))* nelx * conv_scale/100) )) for iter in 1:Niter], legend=false)
+
 
 # ╔═╡ 8169a82e-cc65-4ee0-abed-e9b2b100ffc4
 conv_scale
@@ -365,6 +365,8 @@ show_final_design()
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
+# ╠═729c7557-0694-46a9-90bf-65575955702b
+# ╠═1dbe1789-f38c-4a7f-82d3-66316b24b9c6
 # ╠═a448b803-3925-4d5b-856b-b62dfaa3c3a9
 # ╠═997b6acc-67b7-4c68-8a7a-ee07adabede6
 # ╠═47bc6b2e-a348-49c3-bbf4-3c49e95688af
