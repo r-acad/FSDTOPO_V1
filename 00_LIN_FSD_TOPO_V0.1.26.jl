@@ -33,11 +33,21 @@ md"""
 - LIN v0.1.21 Calculation of element stresses now done directly using eigenvalues of element stress tensor. Last version containing code remains of classical penalty formulation, from this version onwards only l0 threshold is kept
 """
 
-# ╔═╡ 729c7557-0694-46a9-90bf-65575955702b
-ngauss = 6
+# ╔═╡ 635d9298-a222-4088-bba4-df2d7e2b6776
+plot([min(30,Int(max(ceil((((iter-1000*.4)/ 1000))* 500*6 * 2/100),1)))  for iter in 1:1000] )
 
-# ╔═╡ 1dbe1789-f38c-4a7f-82d3-66316b24b9c6
-heatmap((collect([exp(- (i^2+j^2) / (1*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss])	)	)
+# ╔═╡ 8524f502-b370-4ccd-ae03-79d86d2fde71
+"""
+begin
+	fid = h5open("z:\\my_TOPO.topo1" , "w")
+	
+	create_group(fid, "my_TOPO")
+	fid["final_thickness"] = t_res[end]  # writing final thickness
+	
+	
+	close(fid)
+end
+"""
 
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 begin
@@ -70,8 +80,8 @@ begin
 println(">>> START FSD-TOPO: "  * string(Dates.now()))
 	
 # Set global parameters
-scale = 400
-Niter = 800
+scale = 500
+Niter = 1000
 	
 const sigma_all	= 6.0 # allowable sigma 
 const max_all_t = 5.0 # max. thickness
@@ -108,13 +118,14 @@ t_iter = ones(Float64,1:nely,1:nelx).*max_all_t
 t_res = []	# Array of arrays with iteration history of thickness	
 S_res = []	# Array of arrays with iteration history of stress	
 vol_frac_array = [] # Array of volume fraction evolution	
-compliance_array = [] # Array of compliance evolution		
+compliance_array = [] # Array of compliance evolution	
+ngauss_array = [] # Array of ngauss evolution	
 	
 	
 # ********* Loop niter times the FSD-TOPO algorithm *********
 for iter in 1:Niter
 		
-ngauss = min(40, Int(max(ceil((((iter-Niter*.15) / Niter))* nelx * conv_scale/100),0) )) # 40 is a safe limit for a static array in a Ryzen9, reduce or remove mutable static array when publishing
+ngauss = min(30,Int(max(ceil((((iter-Niter*.4)/ Niter))* nelx * conv_scale/100),1))) # 40 is a safe limit for a static array in a Ryzen9, reduce or remove mutable static array when publishing
 
 # Initialize "canvas" (domain surrounded by a frame of 0.0 values)		
 canvas = OffsetArray(zeros(Float64, 1:nely+2*ngauss, 1:nelx+2*ngauss), (-ngauss+1):nely+ngauss,(-ngauss+1):nelx+ngauss)	
@@ -124,7 +135,7 @@ println("TOPO ITER : " * string(iter) * " " * string(Dates.now()))
 		
 sK = reshape(KE_CQUAD4[:]*t_iter[:]', 64*nelx*nely) 
 
-println("       Solve linear system: " * string(Dates.now()))			
+println("  Solve linear system: " * string(Dates.now()))			
 
 # Build global stiffness matrix		
 K = sparse(iK,jK,sK)
@@ -132,7 +143,7 @@ K = sparse(iK,jK,sK)
 # Solve for global displacements	
 U[freedofs] = K[freedofs,freedofs]\F[freedofs]
 	
-println(" Calculate internal loads "  * string(Dates.now()))	
+println("    Calculate internal loads "  * string(Dates.now()))	
 
 		
 # Node numbers, starting at top left corner and growing in columns going down as per in 99 lines of code		
@@ -178,7 +189,8 @@ t_iter .= [((t > (min((iter / Niter), .95))) * min(t, 1.0) + 1.e-9)* max_all_t
 Vol_Frac_pct = sum(t_iter)/(nelx*nely*max_all_t)*100
 push!(vol_frac_array, 	Vol_Frac_pct)	
 		
-push!(compliance_array, U[2])
+push!(compliance_array, abs(U[2]))
+push!(ngauss_array, ngauss)		
 		
 push!(t_res, copy(t_iter))	
 push!(S_res, copy(S))			
@@ -190,34 +202,26 @@ png(curr_thick_plot, "z:\\thick"*string(iter))
 		
 
 end	# for topo iter
-	
+
 println("<<< END FSD-TOPO: "  * string(Dates.now()))		
 		
 end;#begin
 
 # ╔═╡ a448b803-3925-4d5b-856b-b62dfaa3c3a9
-plot(vol_frac_array)
+function plot_volfrac()
+
+metrics = plot([normalize(vol_frac_array), normalize(abs.(compliance_array))], label=["Volume fraction"  "Normalized compliance"  ], legend=:topleft, xlabel="Iteration")
+	
+
+png(metrics, "z:\\01_metrics")			
+	
+end	
+
+# ╔═╡ e7ffd9ab-6d00-4032-b76b-7d46beea3bce
+plot_volfrac()	
 
 # ╔═╡ 997b6acc-67b7-4c68-8a7a-ee07adabede6
-plot(compliance_array)
-
-# ╔═╡ 47bc6b2e-a348-49c3-bbf4-3c49e95688af
-plot([min(40, Int(     max(ceil((((iter-Niter*.1) / (Niter)))* nelx * conv_scale/100), 0) )) for iter in 1:Niter], legend=false)
-
-
-# ╔═╡ 8169a82e-cc65-4ee0-abed-e9b2b100ffc4
-conv_scale
-
-# ╔═╡ 8524f502-b370-4ccd-ae03-79d86d2fde71
-begin
-	fid = h5open("z:\\my_TOPO.topo1" , "w")
-	
-	create_group(fid, "my_TOPO")
-	fid["final_thickness"] = t_res[end]  # writing final thickness
-	
-	
-	close(fid)
-end
+plot(ngauss_array, label="ngauss", legend=:topleft, xlabel="Iteration")
 
 # ╔═╡ 95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
 heatmap(reverse(abs.(S).*t_res[end] , dims = 1), clim = (0, 80), aspect_ratio = 1, c=cgrad([:black, :blue, :cyan, :green, :yellow, :orange, :red, :white], 13),   dpi=dpi_quality, grids=false, showaxis=:y, tickfontsize=4, background_colour = :black)
@@ -365,12 +369,10 @@ show_final_design()
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
-# ╠═729c7557-0694-46a9-90bf-65575955702b
-# ╠═1dbe1789-f38c-4a7f-82d3-66316b24b9c6
+# ╠═e7ffd9ab-6d00-4032-b76b-7d46beea3bce
+# ╠═635d9298-a222-4088-bba4-df2d7e2b6776
 # ╠═a448b803-3925-4d5b-856b-b62dfaa3c3a9
 # ╠═997b6acc-67b7-4c68-8a7a-ee07adabede6
-# ╠═47bc6b2e-a348-49c3-bbf4-3c49e95688af
-# ╠═8169a82e-cc65-4ee0-abed-e9b2b100ffc4
 # ╠═8524f502-b370-4ccd-ae03-79d86d2fde71
 # ╟─4c4e1eaa-d605-47b0-bce9-240f15c6f0aa
 # ╠═95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
