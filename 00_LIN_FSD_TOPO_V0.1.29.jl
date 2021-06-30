@@ -4,6 +4,9 @@
 using Markdown
 using InteractiveUtils
 
+# ╔═╡ 5da8412b-9196-4c1f-a81b-019ee66b5959
+ using CUDA.CUSPARSE
+
 # ╔═╡ 894130b0-3038-44fe-9d1f-46afe8734b98
 begin
 		using Plots, OffsetArrays, SparseArrays
@@ -74,8 +77,8 @@ begin
 println(">>> START FSD-TOPO: "  * string(Dates.now()))
 	
 # Set global parameters
-scale = 1000
-Niter = 1000
+scale = 30
+Niter = 40
 	
 const sigma_all	= 6.0 # allowable sigma 
 const max_all_t = 5.0 # max. thickness
@@ -134,7 +137,7 @@ canvas = OffsetArray(
 		
 domain = copy(canvas)		
 domain[1:nely, 1:nelx] .= 1.0 # array with 1.0 in the domain
-			
+
 
 println("TOPO ITER : " * string(iter) * " " * string(Dates.now()))	
 		
@@ -172,10 +175,24 @@ canvas[1:nely, 1:nelx] .= t_iter
 # Return the sum the product of a subarray centered in the cartesian indices corresponding to i, of the interior matrix, and the kernel elements, centered in CartInd i. Then .divide by the sum of the weights multiplied by a 1 or a 0 depending on whether the base element is >0 or not. Note: the lines below are a single logical expression
 		
 # check this https://discourse.julialang.org/t/unpacking-cartesianindex/27374/4		
-		
-t_iter .= [
+# Original		
+"""t_iter .= [
 sum(canvas[i .+ CartesianIndices((-ngauss:ngauss,-ngauss:ngauss))] .* Gauss_kernel) / 
 sum(domain[i .+ CartesianIndices((-ngauss:ngauss,-ngauss:ngauss))] .* Gauss_kernel) for i in CartesianIndices(t_iter)]		
+"""		
+		
+
+@inbounds for i in Tuple.(CartesianIndices(t_iter))
+		
+data = @inbounds  SMatrix{size(Gauss_kernel)...}(view(canvas, i[1]-ngauss:i[1]+ngauss,i[2]-ngauss:i[2]+ngauss))
+
+filter_norm = @inbounds  SMatrix{size(Gauss_kernel)...}(view(domain, i[1]-ngauss:i[1]+ngauss,i[2]-ngauss:i[2]+ngauss))
+				
+t_iter(i) = sum(data .* Gauss_kernel) / sum( filter_norm .* Gauss_kernel) 
+
+end # for i
+		
+		
 		
 println("       GAUSS End  : " * string(Dates.now()))	
 #*************************************************************************	
@@ -319,7 +336,7 @@ end
 plot_animation_th_histogram()
 
 # ╔═╡ 95b78a43-1caa-4840-ba5c-a0dbd6c78d0d
-heatmap(reverse(abs.(S).*t_res[end][3000:4500,750:1500] , dims = 1), 
+heatmap(reverse(abs.(S).*t_res[end] , dims = 1), 
 	clim = (0, 80), 
 	aspect_ratio = 1, 
 	c=cgrad([:black, :blue, :cyan, :green, :yellow, :orange, :red, :white], 13),   dpi=dpi_quality, 
@@ -495,6 +512,7 @@ bb = show_signed_stress(Niter)
 # ╔═╡ Cell order:
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
+# ╠═5da8412b-9196-4c1f-a81b-019ee66b5959
 # ╟─635d9298-a222-4088-bba4-df2d7e2b6776
 # ╠═31d24957-af0c-4bf0-934c-9fe87d722ea1
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
@@ -516,7 +534,7 @@ bb = show_signed_stress(Niter)
 # ╠═cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 # ╟─c72f9b42-94c7-4377-85cd-5afebbe1d271
 # ╟─5c4c2c37-9873-4471-abd9-3b9c72ba8492
-# ╟─894130b0-3038-44fe-9d1f-46afe8734b98
+# ╠═894130b0-3038-44fe-9d1f-46afe8734b98
 # ╟─7f47d8ef-98be-416d-852f-97fbaa287eec
 # ╠═cb03641d-22fb-4da7-97cb-f676a5e6b386
 # ╟─4048f21a-b68e-4afc-a473-f36d6aa7baa2
