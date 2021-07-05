@@ -34,15 +34,23 @@ md"""
 - LIN v0.1.10  Attempt to use convolution in threads with explicit for-loops
 - LIN v0.1.15 All OK, clean up of matrices (back to plain numbers) and general code
 - LIN v0.1.21 Calculation of element stresses now done directly using eigenvalues of element stress tensor. Last version containing code remains of classical penalty formulation, from this version onwards only l0 threshold is kept
+- LIN v0.1.29 convolution accelerated
 """
 
 # ╔═╡ 635d9298-a222-4088-bba4-df2d7e2b6776
-plot([
-		min(40,Int(max(ceil((((iter-1000*.4)/ ((1-.4)*1000)))* 300*6 * 1.5/100),1))) 		
-		for iter in 1:1000] )
-
-# ╔═╡ c64b6cc8-abd2-4cfe-8504-8ce676a80a59
-
+begin
+	"""
+	plot([
+		  Int(max(ceil((((iter-1000*.5)/ ((1-.5)*1000)))* 700*6 * 2.0/100),1)) 		
+			for iter in 1:1000] )
+	"""
+	
+	plot([
+		  max(ceil((((iter-1000*.5)/ ((1-.5)*1000)))* 700*6 * 2.0/100),1)
+			
+			for iter in 1:1000] )
+	
+end
 
 # ╔═╡ cd707ee0-91fc-11eb-134c-2fdd7aa2a50c
 begin
@@ -77,17 +85,15 @@ begin
 println(">>> START FSD-TOPO: "  * string(Dates.now()))
 	
 # Set global parameters
-scale = 30
-Niter = 40
+scale = 700
+Niter = 1000
 	
 const sigma_all	= 6.0 # allowable sigma 
 const max_all_t = 5.0 # max. thickness
 
-conv_scale = 2.5  # % of nelx
+conv_scale = 2.0  # % of nelx
 
 nelx = 6*scale ; nely = 2*scale  #mesh size		
-	
-
 	
 # Initialize external forces vector	
 F = zeros(Float64,  2*(nely+1)*(nelx+1)) 
@@ -119,31 +125,21 @@ t_res = []	# Array of arrays with iteration history of thickness
 S_res = []	# Array of arrays with iteration history of stress	
 vol_frac_array = [] # Array of volume fraction evolution	
 compliance_array = [] # Array of compliance evolution	
-ngauss_array = [] # Array of ngauss evolution	
+cvd_array = [] # Array of cvd evolution	
 	
 	
 # ********* Loop niter times the FSD-TOPO algorithm *********
 for iter in 1:Niter
 
-# 40 is a safe limit for a static array in a Ryzen9
-ngauss = min(40,Int(max(ceil((((iter-Niter*.4)/ (Niter*(1-.4))))* nelx * conv_scale/100),1))) 
-
-	
+# cvd = convolution distance, number of pixels on each side of center of conv
+cvd = Int(max(ceil((((iter-Niter*.5)/ (Niter*(1-.5))))* nelx * conv_scale/100),1)) 
 		
 # Initialize "canvas" (domain surrounded by a frame of 0.0 values)		
-canvas = OffsetArray(
-			zeros(Float64, 1:nely+2ngauss, 1:nelx+2ngauss), 
-			(-ngauss+1):nely+ngauss,(-ngauss+1):nelx+ngauss )	
-		
-domain = copy(canvas)		
-domain[1:nely, 1:nelx] .= 1.0 # array with 1.0 in the domain
-
+canvas = OffsetArray(zeros(Float64, 1:nely+2cvd, 1:nelx+2cvd),(-cvd+1):nely+cvd,(-cvd+1):nelx+cvd )	
 
 println("TOPO ITER : " * string(iter) * " " * string(Dates.now()))	
 		
 sK = reshape(KE_CQUAD4[:]*t_iter[:]', 64*nelx*nely) 
-
-
 
 # Build global stiffness matrix		
 K = sparse(iK,jK,sK)
@@ -151,55 +147,47 @@ K = sparse(iK,jK,sK)
 # Solve for global displacements	
 U[freedofs] = K[freedofs,freedofs] \ F[freedofs]
 
-
 		
 # Node numbers, starting at top left corner and growing in columns going down as per in 99 lines of code		
 @inbounds Threads.@threads for x = 1:nelx; @inbounds Threads.@threads for y = 1:nely n2 = (nely+1)* x +y	; n1 = n2 - (nely+1)
-Ue = U[[2*n1-1;2*n1; 2*n2-1;2*n2; 2*n2+1;2*n2+2; 2*n1+1;2*n1+2],1]
+Ue = U[[2n1-1;2n1; 2n2-1;2n2; 2n2+1;2n2+2; 2n1+1;2n1+2],1]
 # Vector of element principal stresses, eigenvalues of the stress tensor. Scaled by mesh size		
 elm_princ_stress_vec = eigvals(reshape((SU_CQUAD4 * Ue) .* nelx , 2, 2)) 	
 S[y, x] = sign(sum(elm_princ_stress_vec)) * sum(abs.(elm_princ_stress_vec))			end; end # for y, x
 		
 # FSD algorithm, using absolute value of S which has the tension-compression state encoded in the sign of the elms of S.		
 t_iter .*= (abs.(S) ./ (sigma_all * max_all_t) ) 
-
-
 	
 #*************************************************************************		
 # apply spatial filter 
-println("       GAUSS Start: " * string(Dates.now()) * " Ngauss = " * string(ngauss))
+println("       GAUSS Start: " * string(Dates.now()) * " cvd = " * string(cvd))
 		
-Gauss_kernel = SMatrix{2ngauss+1, 2ngauss+1}(collect([exp(- (i^2+j^2) / (1*ngauss^2)) for i in -ngauss:ngauss, j in -ngauss:ngauss]) ) #reduce or remove mutable static array when publishing					
-
-canvas[1:nely, 1:nelx] .= t_iter
+Gauss_kernel = collect([exp(-(i^2+j^2)/(1*cvd^2)) for i in -cvd:cvd, j in -cvd:cvd]) 
+Gauss_kernel_normalized = Gauss_kernel ./ sum(Gauss_kernel)
+		
+if cvd < 41 # reduce or remove mutable static array when publishing
+Gauss_kernel = SMatrix{2cvd+1, 2cvd+1}(Gauss_kernel)
+Gauss_kernel_normalized = SMatrix{2cvd+1, 2cvd+1}(Gauss_kernel_normalized)		
+end	# if
+		
+canvas[1:nely, 1:nelx] .=  t_iter
 # Return the sum the product of a subarray centered in the cartesian indices corresponding to i, of the interior matrix, and the kernel elements, centered in CartInd i. Then .divide by the sum of the weights multiplied by a 1 or a 0 depending on whether the base element is >0 or not. Note: the lines below are a single logical expression
 		
 # check this https://discourse.julialang.org/t/unpacking-cartesianindex/27374/4		
-# Original		
-"""t_iter .= [
-sum(canvas[i .+ CartesianIndices((-ngauss:ngauss,-ngauss:ngauss))] .* Gauss_kernel) / 
-sum(domain[i .+ CartesianIndices((-ngauss:ngauss,-ngauss:ngauss))] .* Gauss_kernel) for i in CartesianIndices(t_iter)]		
-"""		
-		
-
-@inbounds for i in Tuple.(CartesianIndices(t_iter))
-		
-data = @inbounds  SMatrix{size(Gauss_kernel)...}(view(canvas, i[1]-ngauss:i[1]+ngauss,i[2]-ngauss:i[2]+ngauss))
-
-filter_norm = @inbounds  SMatrix{size(Gauss_kernel)...}(view(domain, i[1]-ngauss:i[1]+ngauss,i[2]-ngauss:i[2]+ngauss))
-				
-t_iter(i) = sum(data .* Gauss_kernel) / sum( filter_norm .* Gauss_kernel) 
-
-end # for i
-		
-		
+	
+t_iter .= @inbounds [let	# local scope to define data
+data = @inbounds (view(canvas, ([i .+ CartesianIndices((-cvd:cvd,-cvd:cvd))]...)))	
+if (i[1] < cvd+1)|(i[2] < cvd+1)|(i[1] > (nely - cvd -1))|(i[2] > (nelx - cvd -1))		sum(data .* Gauss_kernel) / sum((data .> 0) .* Gauss_kernel) 			
+else
+	sum(data .* Gauss_kernel_normalized) 
+end; end	# end if, end let				
+for i in CartesianIndices(t_iter)]		
+	
 		
 println("       GAUSS End  : " * string(Dates.now()))	
 #*************************************************************************	
 		
-		
 # Limit thickness to maximum and force progressive l0 threshold		
-
 t_iter .= [((t > (min((iter / Niter), .95))) * min(t, 1.0) + 1.e-5)* max_all_t
 			for t in t_iter]			
 
@@ -209,13 +197,13 @@ Vol_Frac_pct = sum(t_iter)/(nelx*nely*max_all_t)*100
 push!(vol_frac_array, 	Vol_Frac_pct)	
 		
 push!(compliance_array, abs(U[2]))
-push!(ngauss_array, ngauss)		
+push!(cvd_array, cvd)		
 		
 push!(t_res, copy(t_iter))	
 push!(S_res, copy(S))			
 
 # Save current thickness plot
-curr_thick_plot = heatmap(reverse(t_iter, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " Iter: "*string(iter) *" ngauss: "*string(ngauss) *" Scale: "*string(scale), dpi=dpi_quality, grids=false, tickfontsize=4, titlefontsize = 4)			
+curr_thick_plot = heatmap(reverse(t_iter, dims=1), aspect_ratio = 1, c=cgrad(:jet1, 10, categorical = true), title= string(Dates.now())* " Iter: "*string(iter) *" cvd: "*string(cvd) *" Scale: "*string(scale), dpi=dpi_quality, grids=false, tickfontsize=4, titlefontsize = 4)			
 
 png(curr_thick_plot, "z:\\thick"*string(iter))		
 		
@@ -225,10 +213,6 @@ end	# for topo iter
 println("<<< END FSD-TOPO: "  * string(Dates.now()))		
 		
 end;#begin
-
-# ╔═╡ 31d24957-af0c-4bf0-934c-9fe87d722ea1
-size(t_iter,2)
-
 
 # ╔═╡ a448b803-3925-4d5b-856b-b62dfaa3c3a9
 function plot_volfrac()
@@ -250,12 +234,12 @@ plot_volfrac()
 # ╔═╡ 997b6acc-67b7-4c68-8a7a-ee07adabede6
 begin
 	
-		conv_plot = plot(ngauss_array./nelx.*100 , label= "effect. conv. scale", legend=:topleft, xlabel="Iteration", ylabel = "ngauss, % effect. conv. scale",background_colour = :black)
+		conv_plot = plot(cvd_array./nelx.*100 , label= "effect. conv. scale", legend=:topleft, xlabel="Iteration", ylabel = "cvd, % effect. conv. scale",background_colour = :black)
 		
 		
-		conv_plot = plot!(ngauss_array, label="ngauss", legend=:topleft, xlabel="Iteration", ylabel = "ngauss, % effect. conv. scale")
+		conv_plot = plot!(cvd_array, label="cvd", legend=:topleft, xlabel="Iteration", ylabel = "cvd, % effect. conv. scale")
 			
-png(conv_plot, "z:\\02_ngauss_and_conv_scale")	
+png(conv_plot, "z:\\02_cvd_and_conv_scale")	
 		
 end
 
@@ -513,10 +497,8 @@ bb = show_signed_stress(Niter)
 # ╟─bef1cd36-be8d-4f36-b5b9-e4bc034f0ac1
 # ╟─d88f8062-920f-11eb-3f57-63a28f681c3a
 # ╠═5da8412b-9196-4c1f-a81b-019ee66b5959
-# ╟─635d9298-a222-4088-bba4-df2d7e2b6776
-# ╠═31d24957-af0c-4bf0-934c-9fe87d722ea1
+# ╠═635d9298-a222-4088-bba4-df2d7e2b6776
 # ╠═87be1f09-c729-4b1a-b05c-48c79039390d
-# ╠═c64b6cc8-abd2-4cfe-8504-8ce676a80a59
 # ╠═e7ffd9ab-6d00-4032-b76b-7d46beea3bce
 # ╠═a448b803-3925-4d5b-856b-b62dfaa3c3a9
 # ╠═997b6acc-67b7-4c68-8a7a-ee07adabede6
